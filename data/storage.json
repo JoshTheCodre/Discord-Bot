@@ -1,0 +1,288 @@
+{
+  "tasks": [
+    {
+      "taskId": "TLE",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1329135117179949160",
+      "status": "pending",
+      "createdAt": "2025-10-06T13:51:03.304Z",
+      "messageID": "1424755841877413949",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TNV",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1329135117179949160",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:01:04.664Z",
+      "messageID": "1424758364579168326",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TGW",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1329135117179949160",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:07:44.603Z",
+      "messageID": "1424760041923154030",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TSK",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1329135117179949160",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:10:16.941Z",
+      "messageID": "1424760680828895395",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TEU",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1329135117179949160",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:13:08.703Z",
+      "messageID": "1424761401301270618",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TJW",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1424323077231349832",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:14:30.844Z",
+      "messageID": "1424761745817342053",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TRH",
+      "movieName": "The Bad Guys 2",
+      "style": "Jane Recaps Style",
+      "dueDate": "2025-09-13",
+      "assignedTo": "1384014266822033459",
+      "status": "pending",
+      "createdAt": "2025-10-06T14:16:06.361Z",
+      "messageID": "1424762146499199108",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Cairo Heist to Confetti Escape Recap",
+          "status": "pending",
+          "completedAt": null
+        },
+        {
+          "subTaskID": 2,
+          "title": "Wrestling Mayhem to Fans Chase Recap",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TLR",
+      "movieName": "HIM",
+      "style": "Jane Recap Style",
+      "dueDate": "2025-10-07",
+      "assignedTo": "1424664327809536020",
+      "status": "pending",
+      "createdAt": "2025-10-07T19:13:08.169Z",
+      "messageID": "1425199287872262206",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Mix these Edits",
+          "status": "pending",
+          "completedAt": null
+        }
+      ]
+    },
+    {
+      "taskId": "TDU",
+      "movieName": "The Tester 😭",
+      "style": "Jane Recap Style",
+      "dueDate": "2025-10-07",
+      "assignedTo": "1384014266822033459",
+      "status": "pending",
+      "createdAt": "2025-10-08T05:02:17.121Z",
+      "messageID": "1425347554635284611",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Mix these Edits",
+          "status": "completed",
+          "completedAt": "2025-10-08T08:01:00.736Z"
+        }
+      ]
+    },
+    {
+      "taskId": "TMK",
+      "movieName": "Elio",
+      "style": "Jane Recap Style",
+      "dueDate": "2025-10-07",
+      "assignedTo": "1384014266822033459",
+      "status": "pending",
+      "createdAt": "2025-10-08T19:14:31.811Z",
+      "messageID": "1425562029464358984",
+      "channelID": "",
+      "subTasks": [
+        {
+          "subTaskID": 1,
+          "title": "Mix these Photos",
+          "status": "completed",
+          "completedAt": "2025-10-08T19:18:45.602Z"
+        }
+      ]
+    }
+  ],
+  "channels": {
+    "epictoonedits": [
+      {
+        "taskId": "TMK1",
+        "channelId": "1424174320665759774",
+        "forwardedBy": "1384014266822033459",
+        "forwardedTo": "1424272799840735242",
+        "forwardedAt": "2025-10-08T19:19:13.152Z",
+        "status": "forwarded"
+      }
+    ],
+    "super-recaps": [],
+    "alpha-recaps": [
+      {
+        "taskId": "TDU1",
+        "channelId": "1424174391549362298",
+        "forwardedBy": "1384014266822033459",
+        "forwardedTo": "1424272799840735242",
+        "forwardedAt": "2025-10-08T08:15:51.475Z",
+        "status": "forwarded"
+      }
+    ]
+  },
+  "users": [
+    {
+      "id": "1329135117179949160",
+      "name": "Oiza🥰",
+      "dateJoined": "2025-10-06T13:51:03.296Z",
+      "role": "user"
+    },
+    {
+      "id": "1424323077231349832",
+      "name": "Success Samuel",
+      "dateJoined": "2025-10-06T14:14:30.836Z",
+      "role": "user"
+    },
+    {
+      "id": "1424664327809536020",
+      "name": "Barry",
+      "dateJoined": "2025-10-07T19:13:08.155Z",
+      "role": "user",
+      "birthday": "10/08"
+    },
+    {
+      "id": "1384014266822033459",
+      "name": "Joshua",
+      "birthday": "12/05",
+      "role": "admin",
+      "dateJoined": "2025-10-09T01:47:32.241Z",
+      "setupCompletedAt": "2025-10-09T01:47:32.258Z"
+    }
+  ]
+}
