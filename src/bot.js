@@ -9,6 +9,7 @@ const { handleSetupCommand, handleSetupModalSubmit, getUserRole, ADMIN_IDS } = r
 const { startBirthdayReminders, triggerBirthdayCheck } = require('./services/birthdayService');
 const { registerCommands } = require('./utils/registerCommands');
 const { generateUsersTitlesSheet, generateChannelTitlesSheet, generatePerformanceSummary } = require('./services/performanceService');
+const { handleTasksCommand } = require('./services/tasksViewService');
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
@@ -219,6 +220,9 @@ client.on('interactionCreate', async (interaction) => {
                     break;
                 case 'performance':
                     await handlePerformanceCommand(interaction);
+                    break;
+                case 'tasks':
+                    await handleTasksCommand(interaction);
                     break;
                 default:
                     await interaction.reply({

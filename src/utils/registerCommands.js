@@ -24,6 +24,23 @@ const commands = [
                     { name: 'Summary - Quick Performance Overview', value: 'summary' }
                 ))
         .toJSON(),
+    new SlashCommandBuilder()
+        .setName('tasks')
+        .setDescription('View task assignments and status')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('View tasks for a specific user (Admin only)')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('filter')
+                .setDescription('Filter tasks by status')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'Complete (-c) - Show only completed tasks', value: 'complete' },
+                    { name: 'Active (-a) - Show only active/pending tasks', value: 'active' },
+                    { name: 'Due (-d) - Show only overdue tasks', value: 'due' }
+                ))
+        .toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN);
