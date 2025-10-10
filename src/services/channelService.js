@@ -1,19 +1,11 @@
-/**
- * Channel Storage Service
- * Manages task forwarding tracking for Discord channels
- */
-
 const { readData, writeData } = require('./storage');
 
 function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwardedTo) {
   try {
     const data = readData();
-    
-    // Initialize data structure
     data.channels = data.channels || {};
     data.channels[channelName] = data.channels[channelName] || [];
     
-    // Create task record
     const forwardedTask = {
       taskId,
       channelId,
@@ -23,7 +15,6 @@ function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwarded
       status: 'forwarded'
     };
     
-    // Update or add task
     const existingIndex = data.channels[channelName].findIndex(task => task.taskId === taskId);
     const action = existingIndex >= 0 ? 'Updated' : 'Added';
     
@@ -36,12 +27,12 @@ function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwarded
     writeData(data);
     console.log(`📝 ${action} task ${taskId} in channel ${channelName}`);
     return true;
-    
   } catch (error) {
     console.error('Error adding task to channel:', error);
     return false;
   }
 }
+
 
 function getChannelTasks(channelName) {
   try {
@@ -53,21 +44,21 @@ function getChannelTasks(channelName) {
   }
 }
 
+
 function getChannelSummary() {
   try {
     const data = readData();
     const channels = data.channels || {};
-    
     return Object.keys(channels).reduce((summary, channelName) => {
       summary[channelName] = channels[channelName].length;
       return summary;
     }, {});
-    
   } catch (error) {
     console.error('Error getting channel summary:', error);
     return {};
   }
 }
+
 
 function markTaskCompleted(channelName, taskId) {
   try {
@@ -79,14 +70,12 @@ function markTaskCompleted(channelName, taskId) {
     const taskIndex = channelTasks.findIndex(task => task.taskId === taskId);
     if (taskIndex < 0) return false;
     
-    // Mark as completed
     channelTasks[taskIndex].status = 'completed';
     channelTasks[taskIndex].completedAt = new Date().toISOString();
     
     writeData(data);
     console.log(`✅ Marked task ${taskId} as completed in channel ${channelName}`);
     return true;
-    
   } catch (error) {
     console.error('Error marking task as completed:', error);
     return false;

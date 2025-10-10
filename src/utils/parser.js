@@ -1,6 +1,3 @@
-/**
- * Parse task message content - supports both command and natural formats
- */
 function parseTaskMessage(content) {
     const lines = content.trim().split('\n');
     
@@ -19,7 +16,7 @@ function parseTaskMessage(content) {
         };
     }
     
-    // Natural format: FOR @user, Movie: X, Style: Y, Deadline: Z
+    // Natural format: FOR @user
     const userMatch = lines[0].match(/FOR\s+(?:<@(\d+)>|@(\S+))/i);
     if (!userMatch) return { isValid: false };
     
@@ -32,9 +29,7 @@ function parseTaskMessage(content) {
         if (!deadline) deadline = t.match(/Deadline:\s*(.+)/i)?.[1]?.trim();
     }
     
-    if (!movie || !style || !deadline) return { isValid: false };
-    
-    return {
+    return (!movie || !style || !deadline) ? { isValid: false } : {
         isValid: true,
         data: {
             movieName: movie,
@@ -46,6 +41,7 @@ function parseTaskMessage(content) {
     };
 }
 
+
 function parseDeadline(str) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
     
@@ -56,6 +52,7 @@ function parseDeadline(str) {
         ? `${new Date().getFullYear()}-${months[match[2].toLowerCase().substring(0, 3)]}-${match[1].padStart(2, '0')}`
         : null;
 }
+
 
 function parseSubTasks(lines) {
     const tasks = lines.map(line => {

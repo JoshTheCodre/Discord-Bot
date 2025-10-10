@@ -1,42 +1,65 @@
-# Discord Task Bot
+# Discord Task Management Bot
 
-A modern Discord bot for managing task assignments, user registration, and workflow automation in your server.
+A comprehensive Discord bot for task management, user registration, performance tracking, and workflow automation with Google Sheets integration and Firebase support.
 
 ## 📁 Project Structure
 
 ```
 Discord-Bot/
 ├── src/
-│   ├── bot.js                 # Main bot file
+│   ├── bot.js                      # Main bot application
 │   ├── services/
-│   │   ├── storage.js         # Data persistence
-│   │   ├── taskService.js     # Daily reminders
-│   │   ├── finishedTaskService.js # Task forwarding
-│   │   ├── channelService.js  # Channel management
-│   │   └── setupService.js    # User setup handling
+│   │   ├── storage.js              # JSON data persistence
+│   │   ├── googleSheetsService.js  # Google Sheets integration
+│   │   ├── taskService.js          # Task management & reminders
+│   │   ├── performanceService.js   # Performance analytics
+│   │   ├── birthdayService.js      # Birthday automation
+│   │   ├── finishedTaskService.js  # Task completion handling
+│   │   ├── channelService.js       # Channel management
+│   │   ├── setupService.js         # User registration
+│   │   └── tasksViewService.js     # Task visualization
 │   └── utils/
-│       ├── parser.js          # Message parsing
-│       ├── userUtils.js       # User management & validation
-│       └── registerCommands.js # Command registration
+│       ├── parser.js               # Message parsing
+│       ├── userUtils.js            # User utilities
+│       └── registerCommands.js     # Command registration
+├── firebase-migration/             # Firebase migration module
+│   ├── firebase.js                 # Firebase configuration
+│   ├── firestoreService.js         # Firestore operations
+│   ├── migrationService.js         # Migration tools
+│   ├── migrationCommands.js        # Migration CLI
+│   ├── test-firebase.js            # Connection testing
+│   └── *.md                        # Firebase documentation
+├── config/
+│   └── google-credentials.json     # Google Service Account
 ├── data/
-│   └── storage.json           # Task & user data
-├── .env                       # Bot token & client ID
-├── index.js                   # Entry point
-└── package.json
+│   └── storage.json                # Local data storage
+├── .env                            # Environment variables
+├── index.js                        # Entry point
+└── package.json                    # Dependencies
 ```
 
 ## 🚀 Features
 
+### Core Functionality
 - ✅ **User Registration** - `/setup` command with name, birthday, and role assignment
-- ✅ **Registration Validation** - Users must register before task assignment
-- ✅ **Birthday Reminders** - Automatic birthday DMs and channel announcements at 8 AM
-- ✅ **Natural Language Task Parsing** - Create tasks from simple messages
-- ✅ **Role-Based Access** - Admin/user roles with automatic assignment
-- ✅ **Daily Reminders** - Send DM reminders at 9 AM for overdue/due tasks
-- ✅ **Subtask Support** - Handle numbered subtasks with completion tracking
-- ✅ **Task Forwarding** - Forward completed tasks with rich embeds
-- ✅ **Duplicate Prevention** - Prevent duplicate replies and assignments
-- ✅ **Approval System** - Task approval via `@approved` in threads
+- ✅ **Task Management** - Natural language parsing, subtask support, approval system
+- ✅ **Performance Analytics** - Individual and channel performance tracking
+- ✅ **Daily Automation** - Task reminders (9 AM) and birthday notifications (8 AM)
+- ✅ **Role-Based Access** - Admin/user permissions with automatic assignment
+
+### Data & Reporting
+- ✅ **Google Sheets Integration** - Real-time sync with table format display
+- ✅ **Firebase Migration Ready** - Cloud database prepared in separate module
+- ✅ **Performance Reports** - `/performance` command with detailed analytics
+- ✅ **Data Validation** - Registration requirements and duplicate prevention
+- ✅ **Backup Systems** - Multiple storage options with migration tools
+
+### Modern UX
+- ✅ **Slash Commands** - Modern Discord interaction patterns
+- ✅ **Ephemeral Responses** - Dismissible command responses
+- ✅ **Rich Embeds** - Beautiful task and performance displays
+- ✅ **Real-time Updates** - Live data synchronization
+- ✅ **Error Handling** - Comprehensive validation and user feedback
 
 ## 📝 Usage Guide
 
@@ -249,6 +272,29 @@ Please run `/setup` first to register your profile with name and birthday.
 - Existing users need to run `/setup` to become "registered"
 - Legacy task assignments will show warnings until users register
 - All new features require user registration
+
+## 🔥 Firebase Migration Module
+
+The `firebase-migration/` folder contains a complete, self-contained Firebase Firestore migration system:
+
+### Ready for Migration
+```bash
+# Test Firebase connection
+node firebase-migration/test-firebase.js
+
+# Run migration when ready
+node firebase-migration/migrationCommands.js migrate
+```
+
+### Features
+- ✅ **Isolated Module** - Separate from main bot functionality
+- ✅ **Complete Migration Tools** - Automated data transfer
+- ✅ **Backup System** - Safe migration with data protection
+- ✅ **Verification Tools** - Ensure migration accuracy
+
+**Firebase Project**: solomaxstudios-246c0  
+**Database**: sm-discord-bot-db  
+**Status**: Ready for migration when needed
 
 ---
 

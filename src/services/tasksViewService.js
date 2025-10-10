@@ -129,7 +129,7 @@ const handleTasksCommand = async (interaction) => {
                     .setFooter({ text: 'Task viewing permissions' })
                     .setTimestamp();
                 
-                return await interaction.reply({ embeds: [embed], ephemeral: true });
+                return await interaction.reply({ embeds: [embed], flags: 64 });
             }
         }
         
@@ -159,7 +159,7 @@ const handleTasksCommand = async (interaction) => {
                 .setFooter({ text: 'Task overview' })
                 .setTimestamp();
             
-            return await interaction.reply({ embeds: [embed] });
+            return await interaction.reply({ embeds: [embed], flags: 64 });
         }
         
         // Create embeds for tasks (Discord has embed limits)
@@ -218,12 +218,12 @@ const handleTasksCommand = async (interaction) => {
         
         // Send the embeds
         if (embeds.length === 1) {
-            await interaction.reply({ embeds: [embeds[0]] });
+            await interaction.reply({ embeds: [embeds[0]], flags: 64 });
         } else {
             // Send multiple embeds for large task lists
-            await interaction.reply({ embeds: [embeds[0]] });
+            await interaction.reply({ embeds: [embeds[0]], flags: 64 });
             for (let i = 1; i < embeds.length; i++) {
-                await interaction.followUp({ embeds: [embeds[i]] });
+                await interaction.followUp({ embeds: [embeds[i]], flags: 64 });
             }
         }
         
@@ -231,7 +231,7 @@ const handleTasksCommand = async (interaction) => {
         console.error('Error handling tasks command:', error);
         await interaction.reply({
             content: '❌ An error occurred while retrieving tasks.',
-            ephemeral: true
+            flags: 64
         });
     }
 };

@@ -1,16 +1,12 @@
-/**
- * Finished Task Service
- * Handles task completion forwarding and approvals in #finished-tasks channel
- */
-
 const { EmbedBuilder } = require('discord.js');
 const { addTaskToChannel } = require('./channelService');
 const { readData, writeData } = require('./storage');
 const { validateUserRegistration, getUserMention } = require('../utils/userUtils');
 const { getUserRole, ADMIN_IDS } = require('./setupService');
+const DiscordUtils = require('../utils/discordUtils');
+const { syncUsersToSheet } = require('./googleSheetsService');
 
-// Constants
-const CHANNEL_NAME = 'finished-tasks';
+const FINISHED_TASK_CHANNELS = ['finished-tasks', 'shorts-finished'];
 const PATTERNS = {
   taskId: /\b[A-Za-z]{2,10}\d{1,6}\b/,
   forwarding: /(for|->)\s+(.+)/i,
@@ -19,18 +15,18 @@ const PATTERNS = {
   taskIdSplit: /^([A-Za-z]+)(\d+)$/
 }; 
 
-// Helper Functions
 const buildCompletionEmbed = ({ taskId, sender, receiver, taskUrl }) => 
-  new EmbedBuilder()
-    .setColor('#4CAF50')
-    .setTitle(`🧩 Task: ${taskId} Complete`)
-    .setDescription(`${sender || '*Unknown*'} has finished this task`)
-    .addFields(
-      { name: '📋 Next Steps', value: `Ready for ${receiver || '*Unassigned*'}`, inline: false },
-      { name: '🔗 Original Task', value: `**[Click here to view task](${taskUrl || 'https://discord.com'})**`, inline: false }
-    )
-    .setFooter({ text: 'Task completion notification' })
-    .setTimestamp();
+  DiscordUtils.createSuccessEmbed(
+    `Task: ${taskId} Complete`,
+    `${sender || '*Unknown*'} has finished this task`,
+    {
+      fields: [
+        { name: '📋 Next Steps', value: `Ready for ${receiver || '*Unassigned*'}`, inline: false },
+        { name: '🔗 Original Task', value: `**[Click here to view task](${taskUrl || 'https://discord.com'})**`, inline: false }
+      ]
+    }
+  );
+
 
 const getOriginalMessage = async (message) => {
   try {
@@ -47,10 +43,12 @@ const getOriginalMessage = async (message) => {
   }
 };
 
+
 const extractTaskId = (text) => {
   const backtickMatch = text.match(/`([^`]+)`/);
   return backtickMatch?.[1] || text.match(PATTERNS.taskId)?.[0] || null;
 };
+
 
 const findTargetChannel = async (message) => {
   const [user] = Array.from(message.mentions.users.values());
@@ -81,36 +79,33 @@ const findTargetChannel = async (message) => {
   return { receiverMention: user?.toString() || null, targetChannel };
 };
 
+
 const isInTargetChannel = (message) => {
   const channel = message.channel;
-  const channelName = CHANNEL_NAME.toLowerCase();
-  const isDirectMatch = channel?.name?.toLowerCase() === channelName;
-  const isThreadInTarget = channel?.isThread() && channel.parent?.name?.toLowerCase() === channelName;
+  const channelNames = FINISHED_TASK_CHANNELS.map(name => name.toLowerCase());
+  const currentChannelName = channel?.name?.toLowerCase();
+  const parentChannelName = channel?.parent?.name?.toLowerCase();
+  
+  const isDirectMatch = channelNames.includes(currentChannelName);
+  const isThreadInTarget = channel?.isThread() && channelNames.includes(parentChannelName);
+  
   return isDirectMatch || isThreadInTarget;
 };
 
-const isUserAdmin = (userId) => {
-  return ADMIN_IDS.includes(userId);
-};
 
-const createAdminOnlyEmbed = (action) => {
-  return new EmbedBuilder()
-    .setColor('#FF4444')
-    .setTitle('🔒 Admin Only Action')
-    .setDescription(`Only administrators can ${action}.`)
-    .addFields(
-      { name: '👑 Required Permission', value: 'Admin role required', inline: false },
-      { name: '💡 Need Help?', value: 'Contact an administrator if you believe this is an error', inline: false }
-    )
-    .setFooter({ text: 'Access restricted to admins' })
-    .setTimestamp();
-};
+const isUserAdmin = (userId) => ADMIN_IDS.includes(userId);
+
+
+const createAdminOnlyEmbed = (action) => 
+  DiscordUtils.createAdminOnlyEmbed(action);
+
 
 // Task Management Functions
 const parseTaskId = (taskId) => {
   const match = taskId.match(PATTERNS.taskIdSplit);
   return match ? { taskGroup: match[1], subtaskId: parseInt(match[2]) } : null;
 };
+
 
 const completeSubtask = (taskGroup, subtaskId) => {
   try {
@@ -151,6 +146,7 @@ const completeSubtask = (taskGroup, subtaskId) => {
   }
 };
 
+
 // Main Handler Functions
 const formatCompletedDate = (isoString) => {
   try {
@@ -166,6 +162,7 @@ const formatCompletedDate = (isoString) => {
     return 'Unknown date';
   }
 };
+
 
 const handleApproval = async (message) => {
   try {
@@ -201,6 +198,17 @@ const handleApproval = async (message) => {
     if (result.success) {
       await message.react('✅');
       await message.reply(`✅ Subtask **${taskId}** approved and completed!`);
+      
+      // Auto-sync to Google Sheets when task is approved
+      setTimeout(async () => {
+        try {
+          await syncUsersToSheet();
+          console.log('📊 Auto-synced user data to Google Sheets after task approval');
+        } catch (error) {
+          console.error('❌ Auto-sync failed:', error);
+        }
+      }, 2000);
+      
       return true;
     } else {
       // Handle different failure reasons
@@ -235,6 +243,7 @@ const handleApproval = async (message) => {
   }
 };
 
+
 const checkForDuplicates = (taskId, targetChannelName) => {
   const { getChannelTasks } = require('./channelService');
   const data = readData();
@@ -259,38 +268,40 @@ const checkForDuplicates = (taskId, targetChannelName) => {
   return { sameChannelDuplicate, crossChannelDuplicate };
 };
 
+
 const createDuplicateAlert = (type, taskId, duplicate, targetChannel, author) => {
   const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
   
   if (type === 'same') {
-    return new EmbedBuilder()
-      .setColor('#FF6B6B')
-      .setTitle('⚠️ Duplicate Forwarding Detected!')
-      .setDescription(`Task **${taskId}** has already been forwarded to this channel.`)
-      .addFields(
+    return DiscordUtils.createEmbed({
+      color: DiscordUtils.colors.error,
+      title: '⚠️ Duplicate Forwarding Detected!',
+      description: `Task **${taskId}** has already been forwarded to this channel.`,
+      fields: [
         { name: '📅 Originally Forwarded', value: formatDate(duplicate.forwardedAt), inline: true },
         { name: '👤 Original Forwarder', value: `<@${duplicate.forwardedBy}>`, inline: true },
         { name: '🚨 Current Attempt', value: `${author} tried to forward this task again`, inline: false }
-      )
-      .setFooter({ text: 'Duplicate prevention system' })
-      .setTimestamp();
+      ],
+      footer: 'Duplicate prevention system'
+    });
   } else {
-    return new EmbedBuilder()
-      .setColor('#FF9500')
-      .setTitle('🔄 Cross-Channel Forwarding Alert!')
-      .setDescription(`Task **${taskId}** has already been forwarded to a different channel.`)
-      .addFields(
+    return DiscordUtils.createEmbed({
+      color: DiscordUtils.colors.warning,
+      title: '🔄 Cross-Channel Forwarding Alert!',
+      description: `Task **${taskId}** has already been forwarded to a different channel.`,
+      fields: [
         { name: '📍 Already In Channel', value: `#${duplicate.channelName}`, inline: true },
         { name: '📅 Forwarded On', value: formatDate(duplicate.task.forwardedAt), inline: true },
         { name: '👤 Forwarded By', value: `<@${duplicate.task.forwardedBy}>`, inline: true },
         { name: '🎯 Current Attempt', value: `${author} tried to forward to #${targetChannel.name}`, inline: false }
-      )
-      .setFooter({ text: 'Cross-channel duplicate prevention' })
-      .setTimestamp();
+      ],
+      footer: 'Cross-channel duplicate prevention'
+    });
   }
 };
+
 
 const isTaskApproved = (taskId) => {
   try {
@@ -308,6 +319,7 @@ const isTaskApproved = (taskId) => {
     return false;
   }
 };
+
 
 const handleForwarding = async (message) => {
   try {
@@ -404,6 +416,18 @@ const handleForwarding = async (message) => {
     // Store in database
     addTaskToChannel(targetChannel.name, targetChannel.id, taskId, message.author.id, receiverUserId);
     console.log(`✅ Forwarded task ${taskId} to #${targetChannel.name}`);
+    
+    // Auto-sync channels to Google Sheets when task is forwarded
+    setTimeout(async () => {
+      try {
+        const { syncChannelsToSheet } = require('./googleSheetsService');
+        await syncChannelsToSheet();
+        console.log('📊 Auto-synced channel data to Google Sheets after task forwarding');
+      } catch (error) {
+        console.error('❌ Auto-sync failed:', error);
+      }
+    }, 2000);
+    
     return true;
     
   } catch (error) {
@@ -411,6 +435,7 @@ const handleForwarding = async (message) => {
     return false;
   }
 };
+
 
 const handleFinishedTaskMessage = async (message) => {
   // Guard checks

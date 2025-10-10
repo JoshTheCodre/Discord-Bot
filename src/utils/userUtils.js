@@ -1,19 +1,10 @@
-/**
- * Utility functions for Discord user operations and task management
- */
-
 const { readData } = require('../services/storage');
-
 
 function generateTaskId(existingTasks) {
     const existingIds = new Set(existingTasks.map(task => task.taskId));
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => l !== 'T');
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.replace('T', '').split('');
     
-    let attempts = 0;
-    const maxAttempts = 1000;
-    
-    while (attempts < maxAttempts) {
-        // Pick two different letters
+    for (let attempts = 0; attempts < 1000; attempts++) {
         const firstLetter = letters[Math.floor(Math.random() * letters.length)];
         let secondLetter;
         do {
@@ -21,24 +12,16 @@ function generateTaskId(existingTasks) {
         } while (secondLetter === firstLetter);
         
         const taskId = `T${firstLetter}${secondLetter}`;
-        
-        if (!existingIds.has(taskId)) {
-            return taskId;
-        }
-        
-        attempts++;
+        if (!existingIds.has(taskId)) return taskId;
     }
     
-    throw new Error('Unable to generate unique task ID after maximum attempts');
+    throw new Error('Unable to generate unique task ID');
 }
 
+
 async function resolveUserId(guild, mention) {
-    // If it's already a user ID (from <@123456789>), return it
-    if (/^\d+$/.test(mention)) {
-        return mention;
-    }
+    if (/^\d+$/.test(mention)) return mention;
     
-    // If it's a username (from @username), try to find the user
     if (mention.startsWith('@')) {
         const username = mention.slice(1);
         try {
@@ -47,14 +30,14 @@ async function resolveUserId(guild, mention) {
                 m.user.username.toLowerCase() === username.toLowerCase() ||
                 m.displayName.toLowerCase() === username.toLowerCase()
             );
-            return member ? member.user.id : mention; // Fallback to raw mention if not found
+            return member ? member.user.id : mention;
         } catch (error) {
             console.error('Error resolving username:', error);
-            return mention; // Fallback to raw mention
+            return mention;
         }
     }
     
-    return mention; // Return as-is if format is unexpected
+    return mention;
 }
 
 
@@ -67,40 +50,31 @@ async function getUserDisplayName(guild, userId) {
     } catch (error) {
         console.error('Error getting user display name:', error);
     }
-    
-    // Fallback to raw mention if user ID resolution fails
     return userId.startsWith('@') ? userId : `<@${userId}>`;
 }
 
+
 async function ensureUser(userId, guild, readData, writeData) {
-    // Read fresh data each time
     let data = readData();
+    if (!Array.isArray(data.users)) data.users = [];
     
-    // Ensure users array exists
-    if (!Array.isArray(data.users)) {
-        data.users = [];
-    }
-    
-    // Check if user already exists
     const existing = data.users.find(u => u.id === userId);
     if (existing) {
-        console.log(`User already exists: ${existing.name} (${userId})`);
+        console.log(`User exists: ${existing.name} (${userId})`);
         return existing;
     }
     
-    // Fetch user's display name from Discord
-    let displayName = userId; // Fallback to ID
+    let displayName = userId;
     try {
         if (/^\d+$/.test(userId)) {
             const member = await guild.members.fetch(userId);
             displayName = member.displayName || member.user.username || member.user.globalName || userId;
-            console.log(`Fetched Discord name: ${displayName} for ${userId}`);
+            console.log(`Fetched name: ${displayName} for ${userId}`);
         }
     } catch (error) {
-        console.error(`Error fetching display name for user ${userId}:`, error.message);
+        console.error(`Error fetching name for ${userId}:`, error.message);
     }
     
-    // Create new user
     const newUser = { 
         id: userId, 
         name: displayName,
@@ -108,102 +82,66 @@ async function ensureUser(userId, guild, readData, writeData) {
         role: "user" 
     };
     
-    // Add to users array and save
     data.users.push(newUser);
     writeData(data);
-    
-    console.log(`✅ Created new user: ${displayName} (${userId})`);
+    console.log(`✅ Created user: ${displayName} (${userId})`);
     return newUser;
 }
 
-/**
- * Check if a user is registered (has completed /setup)
- * @param {string} userId - Discord user ID
- * @returns {boolean} - True if user is registered with birthday
- */
+
 function isUserRegistered(userId) {
     try {
         const data = readData();
         const user = data.users?.find(u => u.id === userId);
-        // User is considered registered if they have a birthday (completed /setup)
         return user && user.birthday;
     } catch (error) {
-        console.error('Error checking user registration:', error);
+        console.error('Error checking registration:', error);
         return false;
     }
 }
 
-/**
- * Get registered user info
- * @param {string} userId - Discord user ID
- * @returns {object|null} - User object if registered, null otherwise
- */
+
 function getRegisteredUser(userId) {
     try {
         const data = readData();
         const user = data.users?.find(u => u.id === userId);
-        // Only return user if they're registered (have birthday)
         return (user && user.birthday) ? user : null;
     } catch (error) {
-        console.error('Error getting registered user:', error);
+        console.error('Error getting user:', error);
         return null;
     }
 }
 
-/**
- * Check if user is registered and return appropriate response
- * @param {string} userId - Discord user ID
- * @param {string} action - Action being attempted (e.g., "task assignment")
- * @returns {object} - {isRegistered: boolean, user: object|null, message: string}
- */
+
 function validateUserRegistration(userId, action = 'this action') {
     const user = getRegisteredUser(userId);
-    
-    if (user) {
-        return {
-            isRegistered: true,
-            user: user,
-            message: `✅ User ${user.name} is registered`
-        };
-    } else {
-        return {
-            isRegistered: false,
-            user: null,
-            message: `❌ User must complete /setup before ${action}. Please run \`/setup\` first to register your profile with name and birthday.`
-        };
-    }
+    return user ? {
+        isRegistered: true,
+        user: user,
+        message: `✅ User ${user.name} is registered`
+    } : {
+        isRegistered: false,
+        user: null,
+        message: `❌ User must complete /setup before ${action}. Please run \`/setup\` first.`
+    };
 }
 
-/**
- * Get user mention string for error messages
- * @param {string} userId - Discord user ID
- * @returns {string} - Formatted user mention
- */
+
 function getUserMention(userId) {
     return `<@${userId}>`;
 }
 
-/**
- * Validate multiple users for registration
- * @param {string[]} userIds - Array of Discord user IDs
- * @param {string} action - Action being attempted
- * @returns {object} - {allRegistered: boolean, registeredUsers: object[], unregisteredUsers: string[], messages: string[]}
- */
+
 function validateMultipleUsers(userIds, action = 'this action') {
-    const results = userIds.map(userId => ({
-        userId,
-        ...validateUserRegistration(userId, action)
-    }));
-    
+    const results = userIds.map(userId => ({ userId, ...validateUserRegistration(userId, action) }));
     const registeredUsers = results.filter(r => r.isRegistered).map(r => r.user);
     const unregisteredUsers = results.filter(r => !r.isRegistered).map(r => r.userId);
-    const messages = results.map(r => r.message);
     
     return {
         allRegistered: unregisteredUsers.length === 0,
         registeredUsers,
         unregisteredUsers,
-        messages
+        messages: results.map(r => r.message)
     };
 }
 

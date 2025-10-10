@@ -258,31 +258,20 @@
   },
   "users": [
     {
-      "id": "1329135117179949160",
-      "name": "Oiza🥰",
-      "dateJoined": "2025-10-06T13:51:03.296Z",
-      "role": "user"
-    },
-    {
-      "id": "1424323077231349832",
-      "name": "Success Samuel",
-      "dateJoined": "2025-10-06T14:14:30.836Z",
-      "role": "user"
-    },
-    {
-      "id": "1424664327809536020",
-      "name": "Barry",
-      "dateJoined": "2025-10-07T19:13:08.155Z",
-      "role": "user",
-      "birthday": "10/08"
-    },
-    {
       "id": "1384014266822033459",
       "name": "Joshua",
       "birthday": "12/05",
       "role": "admin",
       "dateJoined": "2025-10-09T01:47:32.241Z",
       "setupCompletedAt": "2025-10-09T01:47:32.258Z"
+    },
+    {
+      "id": "1424163883584585840",
+      "name": "Solomon Boyi",
+      "birthday": "05/03",
+      "role": "admin",
+      "dateJoined": "2025-10-09T16:03:42.168Z",
+      "setupCompletedAt": "2025-10-09T16:03:42.168Z"
     }
   ]
 }
