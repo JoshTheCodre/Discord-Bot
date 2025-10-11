@@ -23,9 +23,23 @@ let sheets = null;
 
 const initializeGoogleSheets = async () => {
     try {
-        // Read credentials file
-        const fs = require('fs');
-        const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+        let credentials;
+        
+        // Check if running in production/deployment environment
+        if (process.env.GOOGLE_CLOUD_CREDENTIALS) {
+            // Use environment variable (for deployment)
+            credentials = JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS);
+            console.log('📊 Using Google credentials from environment variable');
+        } else {
+            // Use local file (for development)
+            const fs = require('fs');
+            if (fs.existsSync(CREDENTIALS_PATH)) {
+                credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+                console.log('📊 Using Google credentials from local file');
+            } else {
+                throw new Error('No Google credentials found. Please set GOOGLE_CLOUD_CREDENTIALS environment variable or create config/google-credentials.json');
+            }
+        }
         
         const auth = new google.auth.GoogleAuth({
             credentials: credentials,
