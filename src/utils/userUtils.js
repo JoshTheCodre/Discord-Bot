@@ -1,4 +1,5 @@
 const { readData } = require('../services/storage');
+const { getUser } = require('../firebase/firestoreService');
 
 function generateTaskId(existingTasks) {
     const existingIds = new Set(existingTasks.map(task => task.taskId));
@@ -101,11 +102,27 @@ function isUserRegistered(userId) {
 }
 
 
-function getRegisteredUser(userId) {
+async function getRegisteredUser(userId) {
     try {
+        // First check local storage
         const data = readData();
-        const user = data.users?.find(u => u.id === userId);
-        return (user && user.birthday) ? user : null;
+        const localUser = data.users?.find(u => u.id === userId);
+        if (localUser && localUser.birthday) {
+            return localUser;
+        }
+
+        // If not found locally, check Firestore
+        try {
+            const firestoreUser = await getUser(userId);
+            if (firestoreUser && firestoreUser.birthday) {
+                console.log(`Found user ${firestoreUser.name} in Firestore`);
+                return firestoreUser;
+            }
+        } catch (firestoreError) {
+            console.log('User not found in Firestore, will check local only');
+        }
+
+        return null;
     } catch (error) {
         console.error('Error getting user:', error);
         return null;
@@ -113,8 +130,8 @@ function getRegisteredUser(userId) {
 }
 
 
-function validateUserRegistration(userId, action = 'this action') {
-    const user = getRegisteredUser(userId);
+async function validateUserRegistration(userId, action = 'this action') {
+    const user = await getRegisteredUser(userId);
     return user ? {
         isRegistered: true,
         user: user,
@@ -132,8 +149,8 @@ function getUserMention(userId) {
 }
 
 
-function validateMultipleUsers(userIds, action = 'this action') {
-    const results = userIds.map(userId => ({ userId, ...validateUserRegistration(userId, action) }));
+async function validateMultipleUsers(userIds, action = 'this action') {
+    const results = await Promise.all(userIds.map(async userId => ({ userId, ...await validateUserRegistration(userId, action) })));
     const registeredUsers = results.filter(r => r.isRegistered).map(r => r.user);
     const unregisteredUsers = results.filter(r => !r.isRegistered).map(r => r.userId);
     

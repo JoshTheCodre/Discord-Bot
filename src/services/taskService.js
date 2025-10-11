@@ -75,7 +75,20 @@ async function sendTaskReminder(client, task, overdueSubtasks, dueTodaySubtasks)
             dueTodaySubtasks.forEach(subtask => message += `• ${subtask.title}\n`);
         }
         
-        await user.send(message.trim());
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const dismissButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('dismiss_reminder_dm')
+                    .setLabel('Dismiss')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❌')
+            );
+
+        await user.send({ 
+            content: message.trim(), 
+            components: [dismissButton] 
+        });
         console.log(`Reminder sent to user ${task.assignedTo} for task ${task.taskId}`);
     } catch (error) {
         console.error(`Failed to send reminder for task ${task.taskId}:`, error);

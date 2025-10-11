@@ -169,7 +169,20 @@ async function sendTaskAssignmentDM(client, task, user) {
             .setFooter({ text: 'Good luck with your new assignment! 🚀' })
             .setTimestamp();
 
-        await discordUser.send({ embeds: [congratsEmbed] });
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const dismissButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('dismiss_task_dm')
+                    .setLabel('Dismiss')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❌')
+            );
+
+        await discordUser.send({ 
+            embeds: [congratsEmbed], 
+            components: [dismissButton] 
+        });
         console.log(`📧 Congratulatory DM sent to ${user.name} for task ${task.taskId}`);
         
     } catch (error) {
@@ -319,11 +332,29 @@ client.on('interactionCreate', async (interaction) => {
         // Handle button interactions
         if (interaction.isButton()) {
             if (interaction.customId === 'dismiss_movie_reminder') {
-                await interaction.update({ 
-                    content: '✅ Movie reminder dismissed.',
-                    embeds: [],
-                    components: []
-                });
+                await interaction.message.delete();
+                return;
+            }
+            
+            // Handle DM dismiss buttons
+            if (interaction.customId.startsWith('dismiss_')) {
+                try {
+                    await interaction.reply({ 
+                        content: '✅ Message dismissed', 
+                        ephemeral: true 
+                    });
+                    await interaction.message.delete();
+                } catch (error) {
+                    console.error('Error dismissing DM:', error);
+                    try {
+                        await interaction.reply({ 
+                            content: '❌ Could not dismiss message', 
+                            ephemeral: true 
+                        });
+                    } catch (replyError) {
+                        console.error('Error sending dismiss error reply:', replyError);
+                    }
+                }
                 return;
             }
         }
@@ -455,7 +486,7 @@ client.on('messageCreate', async (message) => {
         console.log(`Creating task for user ID: ${assignedUserId}`);
         
         // Check if user is registered (completed /setup)
-        const registrationCheck = validateUserRegistration(assignedUserId, 'task assignment');
+        const registrationCheck = await validateUserRegistration(assignedUserId, 'task assignment');
         
         if (!registrationCheck.isRegistered) {
             console.log(`❌ User ${assignedUserId} not registered`);

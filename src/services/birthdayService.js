@@ -56,7 +56,21 @@ async function sendBirthdayMessages(client, user) {
 
 async function sendBirthdayDM(client, user) {
     const discordUser = await client.users.fetch(user.id);
-    await discordUser.send({ embeds: [createBirthdayDMEmbed(user.name)] });
+    
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const dismissButton = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('dismiss_birthday_dm')
+                .setLabel('Dismiss')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('❌')
+        );
+    
+    await discordUser.send({ 
+        embeds: [createBirthdayDMEmbed(user.name)], 
+        components: [dismissButton] 
+    });
     console.log(`📧 Birthday DM sent to ${user.name}`);
 }
 

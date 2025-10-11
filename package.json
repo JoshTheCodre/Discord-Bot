@@ -12,7 +12,14 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev:test": "node firebase-migration/reverseMigrationCommands.js test",
+    "dev:backup": "node firebase-migration/reverseMigrationCommands.js backup",
+    "dev:to-firebase": "node firebase-migration/migrationCommands.js migrate",
+    "dev:to-json": "node firebase-migration/reverseMigrationCommands.js reverse-all",
+    "dev:verify": "node firebase-migration/reverseMigrationCommands.js verify",
+    "dev:firebase": "npm run dev:backup && npm run dev:to-firebase && npm start",
+    "dev:json": "npm run dev:backup && npm run dev:to-json && npm start"
   },
   "keywords": [],
   "author": "",

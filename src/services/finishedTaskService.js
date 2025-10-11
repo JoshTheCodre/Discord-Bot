@@ -107,13 +107,35 @@ const parseTaskId = (taskId) => {
 };
 
 
-const completeSubtask = (taskGroup, subtaskId) => {
+const completeSubtask = async (taskGroup, subtaskId) => {
   try {
     const data = readData();
-    const task = data.tasks?.find(t => t.taskId === taskGroup);
+    let task = data.tasks?.find(t => t.taskId === taskGroup);
+    
+    // If not found in local storage, try Firestore
+    if (!task) {
+      try {
+        const { getTask, getAllTasks, updateTask } = require('../firebase/firestoreService');
+        console.log(`🔍 Task ${taskGroup} not found locally, checking Firestore...`);
+        
+        // Get all tasks from Firestore and find the matching one
+        const firestoreTasks = await getAllTasks();
+        task = firestoreTasks?.find(t => t.taskId === taskGroup);
+        
+        if (task) {
+          console.log(`✅ Found task ${taskGroup} in Firestore`);
+          // Add to local data for future reference
+          data.tasks = data.tasks || [];
+          data.tasks.push(task);
+          writeData(data);
+        }
+      } catch (firestoreError) {
+        console.log(`⚠️ Error checking Firestore: ${firestoreError.message}`);
+      }
+    }
     
     if (!task) {
-      console.log(`❌ Task group ${taskGroup} not found`);
+      console.log(`❌ Task group ${taskGroup} not found in local storage or Firestore`);
       return { success: false, reason: 'task_not_found' };
     }
     
@@ -137,6 +159,16 @@ const completeSubtask = (taskGroup, subtaskId) => {
     subtask.completedAt = new Date().toISOString();
     
     writeData(data);
+    
+    // Also update in Firestore if available
+    try {
+      const { updateTask } = require('../firebase/firestoreService');
+      await updateTask(taskGroup, task);
+      console.log(`✅ Updated task ${taskGroup} in Firestore`);
+    } catch (firestoreError) {
+      console.log(`⚠️ Could not update Firestore: ${firestoreError.message}`);
+    }
+    
     console.log(`✅ Marked subtask ${taskGroup}${subtaskId} as completed`);
     return { success: true };
     
@@ -165,9 +197,12 @@ const formatCompletedDate = (isoString) => {
 
 
 const handleApproval = async (message) => {
+  let taskId = null; // Declare taskId at function scope
+  
   try {
+    const parentChannelName = message.channel?.parent?.name?.toLowerCase();
     if (!message.channel?.isThread() || 
-        !message.channel.parent?.name?.toLowerCase() === CHANNEL_NAME.toLowerCase() ||
+        !FINISHED_TASK_CHANNELS.includes(parentChannelName) ||
         !PATTERNS.approval.test(message.content)) {
       return false;
     }
@@ -183,7 +218,7 @@ const handleApproval = async (message) => {
     const starterMessage = await message.channel.fetchStarterMessage();
     if (!starterMessage) return false;
     
-    const taskId = extractTaskId(starterMessage.content || '');
+    taskId = extractTaskId(starterMessage.content || '');
     if (!taskId) return false;
     
     const parsed = parseTaskId(taskId);
@@ -193,7 +228,7 @@ const handleApproval = async (message) => {
       return false;
     }
     
-    const result = completeSubtask(parsed.taskGroup, parsed.subtaskId);
+    const result = await completeSubtask(parsed.taskGroup, parsed.subtaskId);
     
     if (result.success) {
       await message.react('✅');
@@ -407,10 +442,13 @@ const handleForwarding = async (message) => {
     
     // Check receiver registration
     const receiverUserId = message.mentions.users.first()?.id;
-    if (receiverUserId && !validateUserRegistration(receiverUserId, 'task forwarding').isRegistered) {
-      await targetChannel.send(
-        `⚠️ **Note**: ${getUserMention(receiverUserId)} needs to run \`/setup\` before being assigned tasks.`
-      );
+    if (receiverUserId) {
+      const validation = await validateUserRegistration(receiverUserId, 'task forwarding');
+      if (!validation.isRegistered) {
+        await targetChannel.send(
+          `⚠️ **Note**: ${getUserMention(receiverUserId)} needs to run \`/setup\` before being assigned tasks.`
+        );
+      }
     }
     
     // Store in database

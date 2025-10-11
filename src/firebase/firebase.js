@@ -1,6 +1,6 @@
 // Firebase configuration and initialization
 const { initializeApp } = require('firebase/app');
-const { getFirestore, connectFirestoreEmulator } = require('firebase/firestore');
+const { getFirestore } = require('firebase/firestore');
 const { getAuth } = require('firebase/auth');
 
 // Firebase configuration object
@@ -22,6 +22,9 @@ const db = getFirestore(app);
 
 // Initialize Auth (if needed)
 const auth = getAuth(app);
+
+// Log successful connection
+console.log('🔥 Firebase initialized successfully');
 
 // Export for use in other modules
 module.exports = {
