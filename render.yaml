@@ -16,9 +16,3 @@ services:
     envVars:
       - key: NODE_ENV
         value: "production"
-      - key: DISCORD_BOT_TOKEN
-        fromSecret: DISCORD_BOT_TOKEN
-      - key: CLIENT_ID
-        fromSecret: CLIENT_ID
-      - key: GOOGLE_CLOUD_CREDENTIALS
-        fromSecret: GOOGLE_CLOUD_CREDENTIALS
