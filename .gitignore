@@ -4,6 +4,9 @@ node_modules/
 # Environment variables
 .env
 
+# Google Cloud credentials
+config/google-credentials.json
+
 # Logs
 *.log
 
