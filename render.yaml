@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: discord-bot
+    env: node
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: false
+    numInstances: 1
+    pullRequestPreviewsEnabled: false
+
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: "production"
+      - key: DISCORD_BOT_TOKEN
+        fromSecret: DISCORD_BOT_TOKEN
+      - key: CLIENT_ID
+        fromSecret: CLIENT_ID
+      - key: GOOGLE_CLOUD_CREDENTIALS
+        fromSecret: GOOGLE_CLOUD_CREDENTIALS
