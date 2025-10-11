@@ -555,4 +555,22 @@ server.listen(port, () => {
     console.log(`🌐 Health check server running on port ${port}`);
 });
 
+// Debug environment variables
+console.log('🔍 Environment check:');
+console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`- DISCORD_BOT_TOKEN: ${process.env.DISCORD_BOT_TOKEN ? '✅ Set' : '❌ Missing'}`);
+console.log(`- CLIENT_ID: ${process.env.CLIENT_ID ? '✅ Set' : '❌ Missing'}`);
+console.log(`- GOOGLE_CLOUD_CREDENTIALS: ${process.env.GOOGLE_CLOUD_CREDENTIALS ? '✅ Set' : '❌ Missing'}`);
+
+// Validate required environment variables
+const requiredEnvVars = ['DISCORD_BOT_TOKEN', 'CLIENT_ID'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingEnvVars);
+    console.error('Please set these environment variables in your deployment platform.');
+    process.exit(1);
+}
+
+console.log('🚀 Starting Discord bot...');
 client.login(process.env.DISCORD_BOT_TOKEN);

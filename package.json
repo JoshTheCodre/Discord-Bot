@@ -1,28 +1,27 @@
 {
+  "name": "discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot for task management with Firebase integration",
+  "main": "src/bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/bot.js",
+    "dev": "node src/bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "task-management",
+    "firebase"
+  ],
+  "author": "JoshTheCodre",
+  "license": "ISC",
   "dependencies": {
     "discord.js": "^14.22.1",
     "dotenv": "^16.3.1",
     "firebase": "^12.4.0",
     "googleapis": "^161.0.0",
     "node-cron": "^4.2.1"
-  },
-  "name": "discord-bot",
-  "version": "1.0.0",
-  "description": "",
-  "main": "src/bot.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/bot.js",
-    "dev:test": "node firebase-migration/reverseMigrationCommands.js test",
-    "dev:backup": "node firebase-migration/reverseMigrationCommands.js backup",
-    "dev:to-firebase": "node firebase-migration/migrationCommands.js migrate",
-    "dev:to-json": "node firebase-migration/reverseMigrationCommands.js reverse-all",
-    "dev:verify": "node firebase-migration/reverseMigrationCommands.js verify",
-    "dev:firebase": "npm run dev:backup && npm run dev:to-firebase && npm start",
-    "dev:json": "npm run dev:backup && npm run dev:to-json && npm start"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  }
 }
