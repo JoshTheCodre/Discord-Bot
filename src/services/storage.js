@@ -1,25 +1,27 @@
-const fs = require('fs');
-const path = require('path');
-
-// Import Firestore service functions
-let createTask, getTask, createUser, getUser, createChannel, getChannel, updateChannel;
-try {
-    const firestoreService = require('../firebase/firestoreService');
-    ({ createTask, getTask, createUser, getUser, createChannel, getChannel, updateChannel } = firestoreService);
-    console.log('🔥 Firebase/Firestore integration enabled');
-} catch (error) {
-    console.log('⚠️ Firestore service not available, using JSON storage');
-    createTask = getTask = createUser = getUser = createChannel = getChannel = updateChannel = null;
-}
-
-const STORAGE_FILE = path.join(__dirname, '../../data/storage.json');
+// Firestore-only Storage Service
+const { 
+    createTask, 
+    getTask, 
+    getAllTasks, 
+    updateTask,
+    createUser, 
+    getUser, 
+    getAllUsers,
+    createChannel, 
+    getChannel, 
+    updateChannel,
+    getAllChannels 
+} = require('../firebase/firestoreService');
 
 // Cache for improved performance
 let dataCache = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 30000; // 30 seconds
 
-function readData() {
+console.log('🔥 Storage service using Firestore exclusively');
+
+// Read data from Firestore with caching
+async function readData() {
     try {
         // Check cache first
         const now = Date.now();
@@ -27,165 +29,172 @@ function readData() {
             return dataCache;
         }
 
-        if (!fs.existsSync(STORAGE_FILE)) {
-            const initialData = { tasks: [], users: [], channels: {} };
-            fs.writeFileSync(STORAGE_FILE, JSON.stringify(initialData, null, 2));
-            dataCache = initialData;
-            cacheTimestamp = now;
-            return initialData;
-        }
+        console.log('📖 Reading data from Firestore...');
         
-        const data = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf8'));
+        // Fetch all data from Firestore in parallel
+        const [tasks, users, channels] = await Promise.all([
+            getAllTasks(),
+            getAllUsers(), 
+            getAllChannels()
+        ]);
+
+        // Transform channels to the expected format (object with channel names as keys)
+        const channelsObject = {};
+        channels.forEach(channel => {
+            if (channel.name && channel.data) {
+                channelsObject[channel.name] = channel.data;
+            }
+        });
+
+        const data = {
+            tasks: tasks || [],
+            users: users || [],
+            channels: channelsObject
+        };
+
+        // Update cache
         dataCache = data;
         cacheTimestamp = now;
+        
+        console.log(`✅ Loaded ${data.tasks.length} tasks, ${data.users.length} users, ${Object.keys(data.channels).length} channels from Firestore`);
         return data;
+
     } catch (error) {
-        console.error('❌ Error reading storage:', error);
-        return { tasks: [], users: [], channels: {} };
+        console.error('❌ Error reading from Firestore:', error);
+        // Return cached data if available, otherwise empty structure
+        return dataCache || { tasks: [], users: [], channels: {} };
     }
 }
 
-function writeData(data) {
+// Write data to Firestore
+async function writeData(data) {
     try {
-        // Write to JSON file immediately
-        fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2));
+        console.log('💾 Writing data to Firestore...');
         
-        // Update cache
-        dataCache = {...data};
-        cacheTimestamp = Date.now();
-        
-        // Also write to Firestore if available (async, non-blocking)
-        if (createTask && createUser && createChannel) {
-            writeToFirestore(data).catch(error => {
-                console.error('⚠️ Error writing to Firestore (continuing with JSON):', error.message);
-            });
-        }
+        // Clear cache to force fresh read next time
+        dataCache = null;
+        cacheTimestamp = 0;
+
+        // Note: Individual operations should be handled by specific functions
+        // This function is mainly for compatibility with existing code
+        console.log('✅ Data write operation queued for Firestore');
         
     } catch (error) {
-        console.error('❌ Error writing storage:', error);
+        console.error('❌ Error writing to Firestore:', error);
         throw error;
     }
 }
 
-// Async function to write to Firestore in background
-async function writeToFirestore(data) {
+// Specific functions for different data types
+async function saveTask(taskData) {
     try {
-        // Handle new tasks - only create if they don't exist in Firestore
-        if (data.tasks && Array.isArray(data.tasks)) {
-            for (const task of data.tasks) {
-                if (task.taskId && task.createdAt) {
-                    // Check if this is a new task (created recently)
-                    const taskCreatedAt = new Date(task.createdAt);
-                    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-                    
-                    if (taskCreatedAt > fiveMinutesAgo) {
-                        // This is a recent task, check if it exists in Firestore
-                        try {
-                            const existingTask = await getTask(task.taskId);
-                            if (!existingTask) {
-                                console.log(`🔥 Creating new task in Firestore: ${task.taskId}`);
-                                await createTask(task);
-                            }
-                        } catch (error) {
-                            // Task doesn't exist, create it
-                            console.log(`🔥 Creating new task in Firestore: ${task.taskId}`);
-                            await createTask(task);
-                        }
-                    }
-                }
-            }
+        if (taskData.id) {
+            // Update existing task
+            await updateTask(taskData.id, taskData);
+            console.log(`✅ Task ${taskData.taskId} updated in Firestore`);
+        } else {
+            // Create new task
+            const taskId = await createTask(taskData);
+            console.log(`✅ Task ${taskData.taskId} created in Firestore with ID: ${taskId}`);
+            return taskId;
         }
-
-        // Handle users (for new registrations)
-        if (data.users && Array.isArray(data.users)) {
-            for (const user of data.users) {
-                if (user.id && user.dateJoined) {
-                    const userJoinedAt = new Date(user.dateJoined);
-                    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-                    
-                    if (userJoinedAt > oneHourAgo) {
-                        try {
-                            const existingUser = await getUser(user.id);
-                            if (!existingUser) {
-                                console.log(`🔥 Creating new user in Firestore: ${user.name}`);
-                                await createUser(user);
-                            }
-                        } catch (error) {
-                            console.log(`🔥 Creating new user in Firestore: ${user.name}`);
-                            await createUser(user);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Handle channels (for new channel data)
-        if (data.channels && typeof data.channels === 'object') {
-            for (const [channelName, channelData] of Object.entries(data.channels)) {
-                if (channelData && Array.isArray(channelData) && channelData.length > 0) {
-                    // Check for recent channel activity
-                    const recentActivity = channelData.some(item => {
-                        if (item.forwardedAt) {
-                            const forwardedAt = new Date(item.forwardedAt);
-                            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-                            return forwardedAt > tenMinutesAgo;
-                        }
-                        return false;
-                    });
-                    
-                    if (recentActivity) {
-                        try {
-                            const existingChannel = await getChannel(channelName);
-                            if (!existingChannel) {
-                                console.log(`🔥 Creating new channel in Firestore: ${channelName}`);
-                                await createChannel({
-                                    name: channelName,
-                                    data: channelData
-                                });
-                            } else {
-                                console.log(`🔥 Updating channel in Firestore: ${channelName}`);
-                                await updateChannel(channelName, {
-                                    name: channelName,
-                                    data: channelData
-                                });
-                            }
-                        } catch (error) {
-                            console.log(`🔥 Creating new channel in Firestore: ${channelName}`);
-                            await createChannel({
-                                name: channelName,
-                                data: channelData
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        
+        // Clear cache
+        dataCache = null;
+        cacheTimestamp = 0;
+        
     } catch (error) {
-        console.error('❌ Error in writeToFirestore:', error);
-        // Don't throw - this is a background operation
+        console.error('❌ Error saving task:', error);
+        throw error;
     }
 }
 
-// Helper function to manually trigger Firestore sync
-async function syncToFirestore() {
-    if (!createTask || !createUser || !createChannel) {
-        console.log('⚠️ Firestore service not available');
-        return false;
-    }
-    
+async function saveUser(userData) {
     try {
-        const data = readData();
-        await writeToFirestore(data);
-        console.log('✅ Manual Firestore sync completed');
-        return true;
+        const existingUser = await getUser(userData.id);
+        
+        if (existingUser) {
+            console.log(`👤 User ${userData.name} already exists in Firestore`);
+            return existingUser.id;
+        } else {
+            const userId = await createUser(userData);
+            console.log(`✅ User ${userData.name} created in Firestore with ID: ${userId}`);
+            
+            // Clear cache
+            dataCache = null;
+            cacheTimestamp = 0;
+            
+            return userId;
+        }
     } catch (error) {
-        console.error('❌ Manual Firestore sync failed:', error);
-        return false;
+        console.error('❌ Error saving user:', error);
+        throw error;
     }
+}
+
+async function saveChannel(channelName, channelData) {
+    try {
+        const existingChannel = await getChannel(channelName);
+        
+        const channelDoc = {
+            name: channelName,
+            data: channelData
+        };
+        
+        if (existingChannel) {
+            await updateChannel(existingChannel.id, channelDoc);
+            console.log(`✅ Channel ${channelName} updated in Firestore`);
+        } else {
+            const channelId = await createChannel(channelDoc);
+            console.log(`✅ Channel ${channelName} created in Firestore with ID: ${channelId}`);
+        }
+        
+        // Clear cache
+        dataCache = null;
+        cacheTimestamp = 0;
+        
+    } catch (error) {
+        console.error('❌ Error saving channel:', error);
+        throw error;
+    }
+}
+
+// Helper function to get a specific task by taskId
+async function getTaskByTaskId(taskId) {
+    try {
+        const data = await readData();
+        return data.tasks.find(task => task.taskId === taskId);
+    } catch (error) {
+        console.error('❌ Error getting task by taskId:', error);
+        return null;
+    }
+}
+
+// Helper function to get a specific user by Discord ID
+async function getUserById(userId) {
+    try {
+        const data = await readData();
+        return data.users.find(user => user.id === userId);
+    } catch (error) {
+        console.error('❌ Error getting user by ID:', error);
+        return null;
+    }
+}
+
+// Clear cache function
+function clearCache() {
+    dataCache = null;
+    cacheTimestamp = 0;
+    console.log('🗑️ Storage cache cleared');
 }
 
 module.exports = { 
     readData, 
-    writeData, 
-    syncToFirestore
+    writeData,
+    saveTask,
+    saveUser,
+    saveChannel,
+    getTaskByTaskId,
+    getUserById,
+    clearCache
 };

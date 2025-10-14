@@ -114,22 +114,7 @@ class DiscordUtils {
    */
   static async sendDM(user, content) {
     try {
-      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-      const dismissButton = new ActionRowBuilder()
-          .addComponents(
-              new ButtonBuilder()
-                  .setCustomId('dismiss_general_dm')
-                  .setLabel('Dismiss')
-                  .setStyle(ButtonStyle.Secondary)
-                  .setEmoji('❌')
-          );
-
-      // If content is a string, convert to proper message object
-      const messageContent = typeof content === 'string' 
-          ? { content, components: [dismissButton] }
-          : { ...content, components: [...(content.components || []), dismissButton] };
-
-      return await user.send(messageContent);
+      return await user.send(content);
     } catch (error) {
       console.error(`Failed to send DM to ${user.username}:`, error.message);
       return null;

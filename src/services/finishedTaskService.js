@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { addTaskToChannel } = require('./channelService');
-const { readData, writeData } = require('./storage');
+const { readData, getTaskByTaskId, saveChannel } = require('./storage');
+const { updateTask } = require('../firebase/firestoreService');
 const { validateUserRegistration, getUserMention } = require('../utils/userUtils');
 const { getUserRole, ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
@@ -109,30 +110,16 @@ const parseTaskId = (taskId) => {
 
 const completeSubtask = async (taskGroup, subtaskId) => {
   try {
-    const data = readData();
-    let task = data.tasks?.find(t => t.taskId === taskGroup);
+    // Get task from Firestore
+    console.log(`🔍 Looking for task ${taskGroup} in Firestore...`);
+    let task = await getTaskByTaskId(taskGroup);
     
-    // If not found in local storage, try Firestore
     if (!task) {
-      try {
-        const { getTask, getAllTasks, updateTask } = require('../firebase/firestoreService');
-        console.log(`🔍 Task ${taskGroup} not found locally, checking Firestore...`);
-        
-        // Get all tasks from Firestore and find the matching one
-        const firestoreTasks = await getAllTasks();
-        task = firestoreTasks?.find(t => t.taskId === taskGroup);
-        
-        if (task) {
-          console.log(`✅ Found task ${taskGroup} in Firestore`);
-          // Add to local data for future reference
-          data.tasks = data.tasks || [];
-          data.tasks.push(task);
-          writeData(data);
-        }
-      } catch (firestoreError) {
-        console.log(`⚠️ Error checking Firestore: ${firestoreError.message}`);
-      }
+      console.log(`❌ Task ${taskGroup} not found in Firestore`);
+      return null;
     }
+    
+    console.log(`✅ Found task ${taskGroup} in Firestore`);
     
     if (!task) {
       console.log(`❌ Task group ${taskGroup} not found in local storage or Firestore`);
@@ -155,19 +142,13 @@ const completeSubtask = async (taskGroup, subtaskId) => {
       };
     }
     
+    // Mark subtask as completed
     subtask.status = 'completed';
     subtask.completedAt = new Date().toISOString();
     
-    writeData(data);
-    
-    // Also update in Firestore if available
-    try {
-      const { updateTask } = require('../firebase/firestoreService');
-      await updateTask(taskGroup, task);
-      console.log(`✅ Updated task ${taskGroup} in Firestore`);
-    } catch (firestoreError) {
-      console.log(`⚠️ Could not update Firestore: ${firestoreError.message}`);
-    }
+    // Update task in Firestore
+    await updateTask(task.firestoreId || task.id, task);
+    console.log(`✅ Updated task ${taskGroup} in Firestore`);
     
     console.log(`✅ Marked subtask ${taskGroup}${subtaskId} as completed`);
     return { success: true };
@@ -279,9 +260,9 @@ const handleApproval = async (message) => {
 };
 
 
-const checkForDuplicates = (taskId, targetChannelName) => {
+const checkForDuplicates = async (taskId, targetChannelName) => {
   const { getChannelTasks } = require('./channelService');
-  const data = readData();
+  const data = await readData();
   const allChannels = data.channels || {};
   
   // Check target channel
@@ -338,13 +319,12 @@ const createDuplicateAlert = (type, taskId, duplicate, targetChannel, author) =>
 };
 
 
-const isTaskApproved = (taskId) => {
+const isTaskApproved = async (taskId) => {
   try {
-    const data = readData();
     const parsed = parseTaskId(taskId);
     if (!parsed) return false;
     
-    const task = data.tasks?.find(t => t.taskId === parsed.taskGroup);
+    const task = await getTaskByTaskId(parsed.taskGroup);
     if (!task) return false;
     
     const subtask = task.subTasks?.find(st => st.subTaskID === parsed.subtaskId);

@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 require('dotenv').config();
-const { readData, writeData } = require('./services/storage');
+const { readData, saveTask, saveUser } = require('./services/storage');
 const { generateTaskId, resolveUserId, getUserDisplayName, ensureUser, validateUserRegistration, getUserMention } = require('./utils/userUtils');
 const { parseTaskMessage } = require('./utils/parser');
 const { startReminders } = require('./services/taskService');
@@ -169,19 +169,8 @@ async function sendTaskAssignmentDM(client, task, user) {
             .setFooter({ text: 'Good luck with your new assignment! 🚀' })
             .setTimestamp();
 
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        const dismissButton = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('dismiss_task_dm')
-                    .setLabel('Dismiss')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('❌')
-            );
-
         await discordUser.send({ 
-            embeds: [congratsEmbed], 
-            components: [dismissButton] 
+            embeds: [congratsEmbed]
         });
         console.log(`📧 Congratulatory DM sent to ${user.name} for task ${task.taskId}`);
         
@@ -336,27 +325,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
             
-            // Handle DM dismiss buttons
-            if (interaction.customId.startsWith('dismiss_')) {
-                try {
-                    await interaction.reply({ 
-                        content: '✅ Message dismissed', 
-                        ephemeral: true 
-                    });
-                    await interaction.message.delete();
-                } catch (error) {
-                    console.error('Error dismissing DM:', error);
-                    try {
-                        await interaction.reply({ 
-                            content: '❌ Could not dismiss message', 
-                            ephemeral: true 
-                        });
-                    } catch (replyError) {
-                        console.error('Error sending dismiss error reply:', replyError);
-                    }
-                }
-                return;
-            }
+
         }
 
         if (interaction.isChatInputCommand()) {
@@ -457,7 +426,7 @@ client.on('messageCreate', async (message) => {
     }
     
     // Prevent duplicate processing by checking database
-    const storageData = readData();
+    const storageData = await readData();
     const existingTask = storageData.tasks?.find(task => task.messageID === message.id);
     if (existingTask) {
         console.log(`Task already exists for message ${message.id}: ${existingTask.taskId}`);
@@ -500,7 +469,7 @@ client.on('messageCreate', async (message) => {
         const user = registrationCheck.user;
         
         // Now read fresh data and create task
-        const storageData = readData();
+        const storageData = await readData();
         const taskId = generateTaskId(storageData.tasks || []);
         
         const task = {
@@ -516,10 +485,8 @@ client.on('messageCreate', async (message) => {
             subTasks: result.data.subTasks || []
         };
         
-        // Add task and save
-        if (!Array.isArray(storageData.tasks)) storageData.tasks = [];
-        storageData.tasks.push(task);
-        writeData(storageData);
+        // Save task to Firestore
+        await saveTask(task);
         
         console.log(`✅ Task ${taskId} created and saved`);
         message.reply(`✅ Task ${taskId} created for ${user.name}`);

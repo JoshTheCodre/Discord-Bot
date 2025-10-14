@@ -1,5 +1,5 @@
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder } = require('discord.js');
-const { readData, writeData } = require('./storage');
+const { readData, saveUser } = require('./storage');
 const { syncUsersToSheet } = require('./googleSheetsService');
 
 const ADMIN_IDS = ['1384014266822033459', '1424163883584585840'];
@@ -106,29 +106,19 @@ const handleSetupModalSubmit = async (interaction) => {
 
         const role = getUserRole(userId);
         const isAdmin = role === 'admin';
-        const data = readData();
-        if (!Array.isArray(data.users)) data.users = [];
-
-        let user = data.users.find(u => u.id === userId);
         const now = new Date().toISOString();
         
-        if (user) {
-            user.name = name;
-            user.birthday = birthday;
-            user.role = role;
-            user.setupCompletedAt = now;
-        } else {
-            data.users.push({
-                id: userId,
-                name: name,
-                birthday: birthday,
-                role: role,
-                dateJoined: now,
-                setupCompletedAt: now
-            });
-        }
+        const userData = {
+            id: userId,
+            name: name,
+            birthday: birthday,
+            role: role,
+            dateJoined: now,
+            setupCompletedAt: now
+        };
 
-        writeData(data);
+        // Save user to Firestore
+        await saveUser(userData);
 
         await interaction.reply({ 
             embeds: [new EmbedBuilder()

@@ -57,14 +57,25 @@ async function createTask(taskData) {
 
 async function getTask(taskId) {
   try {
+    // First try to get by document ID
     const taskRef = doc(db, collections.tasks, taskId);
     const taskSnap = await getDoc(taskRef);
     
     if (taskSnap.exists()) {
       return { id: taskSnap.id, ...taskSnap.data() };
-    } else {
-      return null;
     }
+    
+    // If not found by document ID, search by taskId field
+    const tasksRef = collection(db, collections.tasks);
+    const q = query(tasksRef, where('taskId', '==', taskId), limit(1));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
+    
+    return null;
   } catch (error) {
     console.error('❌ Error getting task:', error);
     throw error;
@@ -122,14 +133,25 @@ async function createUser(userData) {
 
 async function getUser(userId) {
   try {
+    // First try to get by document ID
     const userRef = doc(db, collections.users, userId);
     const userSnap = await getDoc(userRef);
     
     if (userSnap.exists()) {
       return { id: userSnap.id, ...userSnap.data() };
-    } else {
-      return null;
     }
+    
+    // If not found by document ID, search by Discord user ID field
+    const usersRef = collection(db, collections.users);
+    const q = query(usersRef, where('id', '==', userId), limit(1));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { firestoreId: doc.id, ...doc.data() };
+    }
+    
+    return null;
   } catch (error) {
     console.error('❌ Error getting user:', error);
     throw error;
@@ -170,16 +192,19 @@ async function createChannel(channelData) {
   }
 }
 
-async function getChannel(channelId) {
+async function getChannel(channelName) {
   try {
-    const channelRef = doc(db, collections.channels, channelId);
-    const channelSnap = await getDoc(channelRef);
+    // Search by channel name field since channels are identified by name
+    const channelsRef = collection(db, collections.channels);
+    const q = query(channelsRef, where('name', '==', channelName), limit(1));
+    const querySnapshot = await getDocs(q);
     
-    if (channelSnap.exists()) {
-      return { id: channelSnap.id, ...channelSnap.data() };
-    } else {
-      return null;
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { firestoreId: doc.id, ...doc.data() };
     }
+    
+    return null;
   } catch (error) {
     console.error('❌ Error getting channel:', error);
     throw error;
