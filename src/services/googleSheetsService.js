@@ -65,7 +65,7 @@ const syncUsersToSheet = async () => {
             if (!initialized) return { success: false, error: 'Failed to initialize Google Sheets' };
         }
 
-        const data = readData();
+        const data = await readData();
         const tasks = data.tasks || [];
         const users = data.users || [];
         const today = new Date().toISOString().split('T')[0];
@@ -219,7 +219,7 @@ const syncChannelsToSheet = async () => {
             if (!initialized) return { success: false, error: 'Failed to initialize Google Sheets' };
         }
 
-        const data = readData();
+        const data = await readData();
         const tasks = data.tasks || [];
         const channels = data.channels || {};
 

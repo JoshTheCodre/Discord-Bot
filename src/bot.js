@@ -55,7 +55,7 @@ async function handlePerformanceCommand(interaction) {
             await interaction.editReply({ embeds: [embed] });
 
         } else if (reportType === 'summary') {
-            const result = generatePerformanceSummary();
+            const result = await generatePerformanceSummary();
             const embed = new EmbedBuilder()
                 .setColor(result.success ? '#2196F3' : '#FF4444')
                 .setTitle(result.success ? '📈 Performance Summary' : '❌ Summary Failed')

@@ -19,12 +19,12 @@ function triggerReminders(client) {
 
 async function sendReminders(client) {
     try {
-        const data = readData();
+        const data = await readData();
         const tasks = data.tasks || [];
         const today = new Date().toISOString().split('T')[0];
         
         for (const task of tasks) {
-            if (task.status !== 'pending' || !isUserRegistered(task.assignedTo)) {
+            if (task.status !== 'pending' || !(await isUserRegistered(task.assignedTo))) {
                 if (task.status === 'pending') {
                     console.log(`⚠️ Skipping unregistered user ${task.assignedTo} (task ${task.taskId})`);
                 }

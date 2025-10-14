@@ -4,9 +4,9 @@ const { syncAllDataToSheets } = require('./googleSheetsService');
 /**
  * Generate performance summary for Discord embed
  */
-const generatePerformanceSummary = (today = '2025-10-09') => {
+const generatePerformanceSummary = async (today = '2025-10-09') => {
     try {
-        const data = readData();
+        const data = await readData();
         const tasks = data.tasks || [];
         const users = data.users || [];
         

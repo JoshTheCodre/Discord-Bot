@@ -56,7 +56,7 @@ async function getUserDisplayName(guild, userId) {
 
 
 async function ensureUser(userId, guild, readData, writeData) {
-    let data = readData();
+    let data = await readData();
     if (!Array.isArray(data.users)) data.users = [];
     
     const existing = data.users.find(u => u.id === userId);
@@ -90,9 +90,9 @@ async function ensureUser(userId, guild, readData, writeData) {
 }
 
 
-function isUserRegistered(userId) {
+async function isUserRegistered(userId) {
     try {
-        const data = readData();
+        const data = await readData();
         const user = data.users?.find(u => u.id === userId);
         return user && user.birthday;
     } catch (error) {
@@ -105,7 +105,7 @@ function isUserRegistered(userId) {
 async function getRegisteredUser(userId) {
     try {
         // First check local storage
-        const data = readData();
+        const data = await readData();
         const localUser = data.users?.find(u => u.id === userId);
         if (localUser && localUser.birthday) {
             return localUser;

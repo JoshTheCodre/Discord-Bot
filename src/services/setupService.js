@@ -4,8 +4,8 @@ const { readData, saveUser } = require('./storage');
 
 const ADMIN_IDS = ['1384014266822033459', '1424163883584585840'];
 
-const hasUserCompletedSetup = (userId) => {
-    const data = readData();
+const hasUserCompletedSetup = async (userId) => {
+    const data = await readData();
     const user = data.users?.find(u => u.id === userId);
     return user && user.birthday;
 };
@@ -60,7 +60,7 @@ const validateBirthday = (birthday) => {
 
 const handleSetupCommand = async (interaction) => {
     try {
-        if (hasUserCompletedSetup(interaction.user.id)) {
+        if (await hasUserCompletedSetup(interaction.user.id)) {
             return await interaction.reply({ 
                 embeds: [new EmbedBuilder()
                     .setColor('#FF6B6B')
@@ -86,7 +86,7 @@ const handleSetupModalSubmit = async (interaction) => {
     try {
         const userId = interaction.user.id;
         
-        if (hasUserCompletedSetup(userId)) {
+        if (await hasUserCompletedSetup(userId)) {
             return await interaction.reply({
                 content: '⚠️ You have already completed setup!',
                 flags: 64

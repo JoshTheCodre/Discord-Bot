@@ -1,8 +1,8 @@
 const { readData, writeData } = require('./storage');
 
-function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwardedTo) {
+async function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwardedTo) {
   try {
-    const data = readData();
+    const data = await readData();
     data.channels = data.channels || {};
     data.channels[channelName] = data.channels[channelName] || [];
     
@@ -24,7 +24,7 @@ function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwarded
       data.channels[channelName].push(forwardedTask);
     }
     
-    writeData(data);
+    await writeData(data);
     console.log(`📝 ${action} task ${taskId} in channel ${channelName}`);
     return true;
   } catch (error) {
@@ -34,9 +34,9 @@ function addTaskToChannel(channelName, channelId, taskId, forwardedBy, forwarded
 }
 
 
-function getChannelTasks(channelName) {
+async function getChannelTasks(channelName) {
   try {
-    const data = readData();
+    const data = await readData();
     return data.channels?.[channelName] || [];
   } catch (error) {
     console.error('Error getting channel tasks:', error);
@@ -45,9 +45,9 @@ function getChannelTasks(channelName) {
 }
 
 
-function getChannelSummary() {
+async function getChannelSummary() {
   try {
-    const data = readData();
+    const data = await readData();
     const channels = data.channels || {};
     return Object.keys(channels).reduce((summary, channelName) => {
       summary[channelName] = channels[channelName].length;
@@ -60,9 +60,9 @@ function getChannelSummary() {
 }
 
 
-function markTaskCompleted(channelName, taskId) {
+async function markTaskCompleted(channelName, taskId) {
   try {
-    const data = readData();
+    const data = await readData();
     const channelTasks = data.channels?.[channelName];
     
     if (!channelTasks) return false;
@@ -73,7 +73,7 @@ function markTaskCompleted(channelName, taskId) {
     channelTasks[taskIndex].status = 'completed';
     channelTasks[taskIndex].completedAt = new Date().toISOString();
     
-    writeData(data);
+    await writeData(data);
     console.log(`✅ Marked task ${taskId} as completed in channel ${channelName}`);
     return true;
   } catch (error) {

@@ -258,7 +258,7 @@ const checkForDuplicates = async (taskId, targetChannelName) => {
   const allChannels = data.channels || {};
   
   // Check target channel
-  const existingTasks = getChannelTasks(targetChannelName);
+  const existingTasks = await getChannelTasks(targetChannelName);
   const sameChannelDuplicate = existingTasks.find(task => task.taskId === taskId);
   
   // Check other channels
@@ -424,7 +424,7 @@ const handleForwarding = async (message) => {
     }
     
     // Store in database
-    addTaskToChannel(targetChannel.name, targetChannel.id, taskId, message.author.id, receiverUserId);
+    await addTaskToChannel(targetChannel.name, targetChannel.id, taskId, message.author.id, receiverUserId);
     console.log(`✅ Forwarded task ${taskId} to #${targetChannel.name}`);
     
     // Task forwarded successfully - Firestore-only system handles data automatically

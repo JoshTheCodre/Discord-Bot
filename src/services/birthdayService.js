@@ -21,7 +21,7 @@ function triggerBirthdayCheck(client) {
 
 async function checkBirthdays(client) {
     try {
-        const { users = [] } = readData();
+        const { users = [] } = await readData();
         const today = getTodayString();
         console.log(`🎂 Checking birthdays for ${today}`);
         
