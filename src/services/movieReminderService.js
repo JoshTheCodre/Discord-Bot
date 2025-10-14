@@ -30,7 +30,7 @@ class MovieReminderService {
     cron.schedule('0 8 * * *', () => {
       this.checkMovieReminders();
     }, {
-      timezone: 'America/New_York' // Adjust timezone as needed
+      timezone: 'Africa/Lagos' // Nigerian timezone (WAT)
     });
   }
 

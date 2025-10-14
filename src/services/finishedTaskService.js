@@ -5,7 +5,7 @@ const { updateTask } = require('../firebase/firestoreService');
 const { validateUserRegistration, getUserMention } = require('../utils/userUtils');
 const { getUserRole, ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
-const { syncUsersToSheet } = require('./googleSheetsService');
+
 
 const FINISHED_TASK_CHANNELS = ['finished-tasks', 'shorts-finished'];
 const PATTERNS = {
@@ -215,15 +215,7 @@ const handleApproval = async (message) => {
       await message.react('✅');
       await message.reply(`✅ Subtask **${taskId}** approved and completed!`);
       
-      // Auto-sync to Google Sheets when task is approved
-      setTimeout(async () => {
-        try {
-          await syncUsersToSheet();
-          console.log('📊 Auto-synced user data to Google Sheets after task approval');
-        } catch (error) {
-          console.error('❌ Auto-sync failed:', error);
-        }
-      }, 2000);
+      // Task approved successfully - Firestore-only system handles data automatically
       
       return true;
     } else {
@@ -363,7 +355,7 @@ const handleForwarding = async (message) => {
     console.log(`🔍 Checking task ${taskId} for forwarding to #${targetChannel.name}`);
     
     // Check if task is approved BEFORE forwarding
-    if (!isTaskApproved(taskId)) {
+    if (!(await isTaskApproved(taskId))) {
       console.log(`❌ UNAPPROVED: Task ${taskId} is not approved for forwarding`);
       const embed = new EmbedBuilder()
         .setColor('#FF4444')
@@ -381,7 +373,7 @@ const handleForwarding = async (message) => {
     }
     
     // Check for duplicates BEFORE sending any messages
-    const { sameChannelDuplicate, crossChannelDuplicate } = checkForDuplicates(taskId, targetChannel.name);
+    const { sameChannelDuplicate, crossChannelDuplicate } = await checkForDuplicates(taskId, targetChannel.name);
     
     if (sameChannelDuplicate) {
       console.log(`⚠️ DUPLICATE: Task ${taskId} already in #${targetChannel.name}`);
@@ -435,16 +427,7 @@ const handleForwarding = async (message) => {
     addTaskToChannel(targetChannel.name, targetChannel.id, taskId, message.author.id, receiverUserId);
     console.log(`✅ Forwarded task ${taskId} to #${targetChannel.name}`);
     
-    // Auto-sync channels to Google Sheets when task is forwarded
-    setTimeout(async () => {
-      try {
-        const { syncChannelsToSheet } = require('./googleSheetsService');
-        await syncChannelsToSheet();
-        console.log('📊 Auto-synced channel data to Google Sheets after task forwarding');
-      } catch (error) {
-        console.error('❌ Auto-sync failed:', error);
-      }
-    }, 2000);
+    // Task forwarded successfully - Firestore-only system handles data automatically
     
     return true;
     

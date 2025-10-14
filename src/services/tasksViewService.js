@@ -4,7 +4,7 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
-const { readData } = require('./storage');
+const { readData, getUserById } = require('./storage');
 const { ADMIN_IDS } = require('./setupService');
 
 /**
@@ -108,7 +108,7 @@ const handleTasksCommand = async (interaction) => {
         const targetUser = interaction.options.getUser('user');
         const filterType = interaction.options.getString('filter');
         
-        const data = readData();
+        const data = await readData();
         const tasks = data.tasks || [];
         const users = data.users || [];
         

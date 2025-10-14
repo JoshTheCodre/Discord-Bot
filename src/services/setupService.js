@@ -1,6 +1,6 @@
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder } = require('discord.js');
 const { readData, saveUser } = require('./storage');
-const { syncUsersToSheet } = require('./googleSheetsService');
+
 
 const ADMIN_IDS = ['1384014266822033459', '1424163883584585840'];
 
@@ -136,15 +136,7 @@ const handleSetupModalSubmit = async (interaction) => {
 
         console.log(`✅ Setup completed for ${name} (${userId}) - Role: ${role}`);
 
-        // Auto-sync user data to Google Sheets when setup is completed
-        setTimeout(async () => {
-            try {
-                await syncUsersToSheet();
-                console.log('📊 Auto-synced user data to Google Sheets after setup completion');
-            } catch (error) {
-                console.error('❌ Auto-sync failed:', error);
-            }
-        }, 2000);
+        // User setup completed successfully - Firestore-only system handles data automatically
 
     } catch (error) {
         console.error('Error handling setup modal:', error);

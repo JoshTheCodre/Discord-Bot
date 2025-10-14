@@ -8,7 +8,7 @@ const { handleFinishedTaskMessage } = require('./services/finishedTaskService');
 const { handleSetupCommand, handleSetupModalSubmit, getUserRole, ADMIN_IDS } = require('./services/setupService');
 const { startBirthdayReminders, triggerBirthdayCheck } = require('./services/birthdayService');
 const { registerCommands } = require('./utils/registerCommands');
-const { generatePerformanceSummary, syncAllDataToSheets, syncUsersToSheet, syncChannelsToSheet } = require('./services/performanceService');
+const { generatePerformanceSummary, syncAllDataToSheets } = require('./services/performanceService');
 const { handleTasksCommand } = require('./services/tasksViewService');
 const MovieReminderService = require('./services/movieReminderService');
 const DiscordUtils = require('./utils/discordUtils');
@@ -53,43 +53,7 @@ async function handlePerformanceCommand(interaction) {
                 embed.addFields({ name: '🐛 Error', value: result.error || 'Unknown error', inline: false });
             }
             await interaction.editReply({ embeds: [embed] });
-        } else if (reportType === 'sheets-users') {
-            const result = await syncUsersToSheet();
-            const embed = new EmbedBuilder()
-                .setColor(result.success ? '#2196F3' : '#FF4444')
-                .setTitle(result.success ? '� Users Sheet Updated!' : '❌ Users Sync Failed')
-                .setDescription(result.success ? 'User data synced to Google Sheets.' : 'Error syncing users to Google Sheets.')
-                .setTimestamp();
 
-            if (result.success) {
-                embed.addFields(
-                    { name: '� Users', value: result.usersCount?.toString() || '0', inline: true },
-                    { name: '� Subtasks', value: result.totalSubtasks?.toString() || '0', inline: true },
-                    { name: '✅ Completed', value: result.completedSubtasks?.toString() || '0', inline: true },
-                    { name: '🔗 Users Sheet', value: '[View Users Data](https://docs.google.com/spreadsheets/d/1S9XfOmIS4latiGRmYHOJGx_XSs9bSc8b_BHNNhPlEMA/edit?gid=0#gid=0)', inline: false }
-                );
-            } else {
-                embed.addFields({ name: '� Error', value: result.error || 'Unknown error', inline: false });
-            }
-            await interaction.editReply({ embeds: [embed] });
-        } else if (reportType === 'sheets-channels') {
-            const result = await syncChannelsToSheet();
-            const embed = new EmbedBuilder()
-                .setColor(result.success ? '#9C27B0' : '#FF4444')
-                .setTitle(result.success ? '📺 Channels Sheet Updated!' : '❌ Channels Sync Failed')
-                .setDescription(result.success ? 'Channel data synced to Google Sheets.' : 'Error syncing channels to Google Sheets.')
-                .setTimestamp();
-
-            if (result.success) {
-                embed.addFields(
-                    { name: '📺 Channels', value: result.channelsCount?.toString() || '0', inline: true },
-                    { name: '📋 Total Forwarded', value: result.totalForwarded?.toString() || '0', inline: true },
-                    { name: '🔗 Channels Sheet', value: '[View Channels Data](https://docs.google.com/spreadsheets/d/1S9XfOmIS4latiGRmYHOJGx_XSs9bSc8b_BHNNhPlEMA/edit?gid=1656319622#gid=1656319622)', inline: false }
-                );
-            } else {
-                embed.addFields({ name: '🐛 Error', value: result.error || 'Unknown error', inline: false });
-            }
-            await interaction.editReply({ embeds: [embed] });
         } else if (reportType === 'summary') {
             const result = generatePerformanceSummary();
             const embed = new EmbedBuilder()

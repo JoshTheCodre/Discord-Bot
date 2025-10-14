@@ -15,8 +15,6 @@ const commands = [
                 .setRequired(true)
                 .addChoices(
                     { name: '📊 Google Sheets - Sync All Data', value: 'sheets-sync' },
-                    { name: '👥 Google Sheets - Users Only', value: 'sheets-users' },
-                    { name: '📺 Google Sheets - Channels Only', value: 'sheets-channels' },
                     { name: 'Summary - Performance Overview', value: 'summary' }
                 ))
         .toJSON(),

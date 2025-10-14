@@ -1,5 +1,5 @@
 const { readData } = require('./storage');
-const { syncAllDataToSheets, syncUsersToSheet, syncChannelsToSheet } = require('./googleSheetsService');
+const { syncAllDataToSheets } = require('./googleSheetsService');
 
 /**
  * Generate performance summary for Discord embed
@@ -77,8 +77,6 @@ const generatePerformanceSummary = (today = '2025-10-09') => {
 
 module.exports = {
     generatePerformanceSummary,
-    syncAllDataToSheets,
-    syncUsersToSheet,
-    syncChannelsToSheet
+    syncAllDataToSheets
 };
 
