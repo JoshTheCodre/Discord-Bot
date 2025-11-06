@@ -1,9 +1,9 @@
 const cron = require('node-cron');
 const SimpleGoogleDocsReader = require('../utils/simpleGoogleDocsReader');
-const { ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
 const DateUtils = require('../utils/dateUtils');
 const StringUtils = require('../utils/stringUtils');
+const { readData } = require('./storage');
 
 /**
  * Movie Reminder Service
@@ -15,9 +15,6 @@ class MovieReminderService {
     this.client = client;
     this.docReader = new SimpleGoogleDocsReader();
     this.movieDocUrl = 'https://docs.google.com/document/d/1x1V4u3GFh1zpJYwMXfQMGRBSQV50y-no/edit?pli=1';
-    
-    // Admin IDs from setup service
-    this.adminIds = ADMIN_IDS;
   }
 
   /**
@@ -151,12 +148,12 @@ class MovieReminderService {
   }
 
   /**
-   * Send reminder DMs to admins
+   * Send reminder DMs to all users
    */
   async sendReminders(todayMovies, tomorrowMovies) {
     const embed = this.createReminderEmbed(todayMovies, tomorrowMovies);
     
-    // Add action row with dismiss button and document link
+    // Add action row with calendar link only
     const components = [{
       type: 1, // ACTION_ROW
       components: [
@@ -165,25 +162,22 @@ class MovieReminderService {
           style: 5, // LINK
           label: '📋 View Full Calendar',
           url: this.movieDocUrl
-        },
-        {
-          type: 2, // BUTTON  
-          style: 4, // DANGER
-          label: '✖️ Dismiss',
-          custom_id: 'dismiss_movie_reminder'
         }
       ]
     }];
     
-    for (const adminId of this.adminIds) {
-      const user = await DiscordUtils.fetchUser(this.client, adminId);
-      if (user) {
-        const sent = await DiscordUtils.sendDM(user, { 
+    // Get all users from storage
+    const { users } = await readData();
+    
+    for (const user of users) {
+      const discordUser = await DiscordUtils.fetchUser(this.client, user.id);
+      if (discordUser) {
+        const sent = await DiscordUtils.sendDM(discordUser, { 
           embeds: [embed],
           components: components
         });
         if (sent) {
-          console.log(`📨 Sent movie reminder to ${user.username}`);
+          console.log(`📨 Sent movie reminder to ${discordUser.username}`);
         }
       }
     }
