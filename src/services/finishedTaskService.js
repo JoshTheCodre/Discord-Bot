@@ -1,32 +1,17 @@
 const { EmbedBuilder } = require('discord.js');
-const { addTaskToChannel } = require('./channelService');
-const { readData, getTaskByTaskId, saveChannel } = require('./storage');
+const { readData, getTaskByTaskId } = require('./storage');
 const { updateTask } = require('../firebase/firestoreService');
-const { validateUserRegistration, getUserMention } = require('../utils/userUtils');
-const { getUserRole, ADMIN_IDS } = require('./setupService');
+const { ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
 
 
 const FINISHED_TASK_CHANNELS = ['finished-tasks', 'shorts-finished'];
 const PATTERNS = {
   taskId: /\b[A-Za-z]{2,10}\d{1,6}\b/,
-  forwarding: /(for|->)\s+(.+)/i,
   approval: /@approved/i,
-  channelName: /(?:for|->)\s+@?([A-Za-z0-9\-]+)\b/i,
+  copyright: /@copyright/i,
   taskIdSplit: /^([A-Za-z]+)(\d+)$/
 }; 
-
-const buildCompletionEmbed = ({ taskId, sender, receiver, taskUrl }) => 
-  DiscordUtils.createSuccessEmbed(
-    `Task: ${taskId} Complete`,
-    `${sender || '*Unknown*'} has finished this task`,
-    {
-      fields: [
-        { name: '📋 Next Steps', value: `Ready for ${receiver || '*Unassigned*'}`, inline: false },
-        { name: '🔗 Original Task', value: `**[Click here to view task](${taskUrl || 'https://discord.com'})**`, inline: false }
-      ]
-    }
-  );
 
 
 const getOriginalMessage = async (message) => {
@@ -51,34 +36,70 @@ const extractTaskId = (text) => {
 };
 
 
-const findTargetChannel = async (message) => {
-  const [user] = Array.from(message.mentions.users.values());
-  const [channel] = Array.from(message.mentions.channels.values());
+// Extract subtask title from message content
+// Format: @user @user Title of Subtask
+const extractSubtaskTitle = (text) => {
+  console.log(`📝 Original text: "${text}"`);
   
-  let targetChannel = channel;
+  // Remove all mentions (@user or @role) - handles <@ID>, <@!ID>, <@&ID>
+  let title = text.replace(/<@[!&]?\d+>/g, '').trim();
+  console.log(`📝 After removing mentions: "${title}"`);
   
-  if (!targetChannel) {
-    const channelName = message.content.match(PATTERNS.channelName)?.[1];
-    if (channelName) {
-      targetChannel = message.guild.channels.cache.find(
-        c => c.isTextBased() && c.name.toLowerCase() === channelName.toLowerCase()
-      );
-      
-      if (!targetChannel) {
-        try {
-          const allChannels = await message.guild.channels.fetch();
-          targetChannel = Array.from(allChannels.values()).find(
-            c => c?.isTextBased?.() && c.name.toLowerCase() === channelName.toLowerCase()
-          );
-        } catch (error) {
-          console.error('❌ Error fetching channels:', error);
+  // Remove multiple spaces (replace with single space)
+  title = title.replace(/\s+/g, ' ').trim();
+  console.log(`📝 After normalizing spaces: "${title}"`);
+  
+  // Remove any other Discord formatting
+  title = title.replace(/[*_~`]/g, '').trim();
+  console.log(`📝 Final title: "${title}"`);
+  
+  return title || null;
+};
+
+
+// Find task containing the subtask with given title
+const findTaskBySubtaskTitle = async (subtaskTitle) => {
+  try {
+    const data = await readData();
+    const tasks = data.tasks || [];
+    
+    console.log(`🔎 Searching ${tasks.length} tasks for subtask: "${subtaskTitle}"`);
+    
+    // Search through all tasks for matching subtask
+    for (const task of tasks) {
+      if (task.subTasks && Array.isArray(task.subTasks)) {
+        console.log(`  Checking task ${task.taskId} with ${task.subTasks.length} subtasks`);
+        
+        const subtask = task.subTasks.find(st => {
+          const titleMatch = st.title === subtaskTitle;
+          const idMatch = st.subTaskID === subtaskTitle;
+          
+          if (titleMatch || idMatch) {
+            console.log(`  ✅ Found match! Title: "${st.title}", ID: "${st.subTaskID}"`);
+          }
+          
+          return titleMatch || idMatch;
+        });
+        
+        if (subtask) {
+          console.log(`✅ Found subtask in task ${task.taskId}`);
+          return { 
+            task, 
+            subtask,
+            taskGroup: task.taskId 
+          };
         }
       }
     }
+    
+    console.log(`❌ No matching subtask found for: "${subtaskTitle}"`);
+    return null;
+  } catch (error) {
+    console.error('❌ Error finding task by subtask title:', error);
+    return null;
   }
-  
-  return { receiverMention: user?.toString() || null, targetChannel };
 };
+
 
 
 const isInTargetChannel = (message) => {
@@ -103,8 +124,17 @@ const createAdminOnlyEmbed = (action) =>
 
 // Task Management Functions
 const parseTaskId = (taskId) => {
+  // Task ID format: TASKGROUP or full title
+  // For approval, we extract from the thread/message context
   const match = taskId.match(PATTERNS.taskIdSplit);
-  return match ? { taskGroup: match[1], subtaskId: parseInt(match[2]) } : null;
+  
+  if (match) {
+    // Legacy numeric format for backwards compatibility
+    return { taskGroup: match[1], subtaskId: parseInt(match[2]) };
+  }
+  
+  // Otherwise, treat the whole taskId as the subtask title
+  return { taskGroup: null, subtaskId: taskId };
 };
 
 
@@ -114,7 +144,7 @@ const completeSubtask = async (taskGroup, subtaskId) => {
     console.log(`🔍 Looking for task ${taskGroup} in Firestore...`);
     let task = await getTaskByTaskId(taskGroup);
     
-    if (!task) {
+    if (!task) {   
       console.log(`❌ Task ${taskGroup} not found in Firestore`);
       return null;
     }
@@ -126,15 +156,23 @@ const completeSubtask = async (taskGroup, subtaskId) => {
       return { success: false, reason: 'task_not_found' };
     }
     
-    const subtask = task.subTasks?.find(st => st.subTaskID === subtaskId);
+    // Find subtask by ID (title or legacy numeric ID)
+    const subtask = task.subTasks?.find(st => {
+      // Compare as strings for title-based IDs
+      return st.subTaskID === subtaskId || 
+             st.subTaskID == subtaskId ||  // Loose equality for numbers
+             st.title === subtaskId;        // Also try matching by title directly
+    });
+    
     if (!subtask) {
       console.log(`❌ Subtask ${subtaskId} not found in task ${taskGroup}`);
+      console.log(`Available subtasks: ${task.subTasks?.map(st => `"${st.subTaskID}"`).join(', ')}`);
       return { success: false, reason: 'subtask_not_found' };
     }
     
     // Check if already completed
     if (subtask.status === 'completed') {
-      console.log(`⚠️ Subtask ${taskGroup}${subtaskId} already completed at ${subtask.completedAt}`);
+      console.log(`⚠️ Subtask ${taskGroup}_${subtaskId} already completed at ${subtask.completedAt}`);
       return { 
         success: false, 
         reason: 'already_completed',
@@ -252,187 +290,168 @@ const handleApproval = async (message) => {
 };
 
 
-const checkForDuplicates = async (taskId, targetChannelName) => {
-  const { getChannelTasks } = require('./channelService');
-  const data = await readData();
-  const allChannels = data.channels || {};
-  
-  // Check target channel
-  const existingTasks = await getChannelTasks(targetChannelName);
-  const sameChannelDuplicate = existingTasks.find(task => task.taskId === taskId);
-  
-  // Check other channels
-  let crossChannelDuplicate = null;
-  for (const [channelName, tasks] of Object.entries(allChannels)) {
-    if (channelName !== targetChannelName) {
-      const taskInOtherChannel = tasks.find(task => task.taskId === taskId);
-      if (taskInOtherChannel) {
-        crossChannelDuplicate = { channelName, task: taskInOtherChannel };
-        break;
-      }
-    }
-  }
-  
-  return { sameChannelDuplicate, crossChannelDuplicate };
-};
-
-
-const createDuplicateAlert = (type, taskId, duplicate, targetChannel, author) => {
-  const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
-  
-  if (type === 'same') {
-    return DiscordUtils.createEmbed({
-      color: DiscordUtils.colors.error,
-      title: '⚠️ Duplicate Forwarding Detected!',
-      description: `Task **${taskId}** has already been forwarded to this channel.`,
-      fields: [
-        { name: '📅 Originally Forwarded', value: formatDate(duplicate.forwardedAt), inline: true },
-        { name: '👤 Original Forwarder', value: `<@${duplicate.forwardedBy}>`, inline: true },
-        { name: '🚨 Current Attempt', value: `${author} tried to forward this task again`, inline: false }
-      ],
-      footer: 'Duplicate prevention system'
-    });
-  } else {
-    return DiscordUtils.createEmbed({
-      color: DiscordUtils.colors.warning,
-      title: '🔄 Cross-Channel Forwarding Alert!',
-      description: `Task **${taskId}** has already been forwarded to a different channel.`,
-      fields: [
-        { name: '📍 Already In Channel', value: `#${duplicate.channelName}`, inline: true },
-        { name: '📅 Forwarded On', value: formatDate(duplicate.task.forwardedAt), inline: true },
-        { name: '👤 Forwarded By', value: `<@${duplicate.task.forwardedBy}>`, inline: true },
-        { name: '🎯 Current Attempt', value: `${author} tried to forward to #${targetChannel.name}`, inline: false }
-      ],
-      footer: 'Cross-channel duplicate prevention'
-    });
-  }
-};
-
-
-const isTaskApproved = async (taskId) => {
+// Handle finished task submission (not approval)
+const handleTaskSubmission = async (message) => {
   try {
-    const parsed = parseTaskId(taskId);
-    if (!parsed) return false;
+    // Check if it's in finished task channel but NOT approval
+    if (PATTERNS.approval.test(message.content)) {
+      return false; // Let handleApproval handle this
+    }
     
-    const task = await getTaskByTaskId(parsed.taskGroup);
-    if (!task) return false;
+    // Extract subtask title from message
+    const subtaskTitle = extractSubtaskTitle(message.content);
+    if (!subtaskTitle) {
+      console.log('❌ No subtask title found in message');
+      return false;
+    }
     
-    const subtask = task.subTasks?.find(st => st.subTaskID === parsed.subtaskId);
-    return subtask?.status === 'completed';
+    console.log(`🔍 Looking for subtask: "${subtaskTitle}"`);
+    
+    // Find the task containing this subtask
+    const result = await findTaskBySubtaskTitle(subtaskTitle);
+    if (!result) {
+      console.log(`❌ No task found with subtask: "${subtaskTitle}"`);
+      await message.reply(`❌ Could not find a task with subtask: **${subtaskTitle}**\n\nMake sure the title matches exactly.`);
+      return false;
+    }
+    
+    const { task, subtask, taskGroup } = result;
+    
+    // Check if already completed
+    if (subtask.status === 'completed') {
+      const completedDate = formatCompletedDate(subtask.completedAt);
+      await message.react('⚠️');
+      await message.reply(`⚠️ **${subtaskTitle}** was already completed on **${completedDate}**\n\n*This task is already done!* ✨`);
+      return true;
+    }
+    
+    // Mark subtask as completed immediately
+    subtask.status = 'completed';
+    subtask.completedAt = new Date().toISOString();
+    subtask.posted = subtask.posted !== undefined ? subtask.posted : false; // Ensure posted field exists
+    
+    // Update task in Firestore
+    await updateTask(task.firestoreId || task.id, task);
+    console.log(`✅ Marked subtask "${subtaskTitle}" as completed`);
+    
+    // Create a thread for this submission if not already in one
+    if (!message.channel.isThread()) {
+      const thread = await message.startThread({
+        name: `${subtaskTitle} - Completed ✅`,
+        autoArchiveDuration: 1440 // 24 hours
+      });
+      
+      await thread.send(`✅ **Task Completed:** ${subtaskTitle}\n👤 **Completed by:** ${message.author}\n📅 **Completed at:** ${new Date().toLocaleString('en-NG')}`);
+      console.log(`✅ Created thread for completed subtask: ${subtaskTitle}`);
+    } else {
+      await message.react('✅');
+      await message.reply(`✅ **Task Completed:** ${subtaskTitle}\n\nGreat work! 🎉`);
+    }
+    
+    return true;
+    
   } catch (error) {
-    console.error('Error checking task approval:', error);
+    console.error('❌ Error handling task submission:', error);
     return false;
   }
 };
 
 
-const handleForwarding = async (message) => {
+// Handle copyright issue reporting
+const handleCopyrightIssue = async (message) => {
   try {
-    // Validate forwarding pattern and message type
-    if (!PATTERNS.forwarding.test(message.content)) return false;
-    if (!message.reference?.messageId && !message.channel?.isThread()) return false;
+    // Check if message contains @copyright
+    if (!PATTERNS.copyright.test(message.content)) {
+      return false;
+    }
     
-    // Check if user is admin before allowing forwarding
+    // Check if user is admin
     if (!isUserAdmin(message.author.id)) {
-      console.log(`❌ NON-ADMIN FORWARDING: ${message.author.username} (${message.author.id}) tried to forward task`);
-      const embed = createAdminOnlyEmbed('forward tasks');
+      console.log(`❌ NON-ADMIN COPYRIGHT: ${message.author.username} tried to report copyright`);
+      const embed = createAdminOnlyEmbed('report copyright issues');
       await message.reply({ embeds: [embed] });
       return false;
     }
     
-    // Find target channel and original message
-    const { receiverMention, targetChannel } = await findTargetChannel(message);
-    if (!targetChannel) return false;
-    
+    // Get the original message (either referenced or thread starter)
     const originalMessage = await getOriginalMessage(message);
-    if (!originalMessage) return false;
-    
-    const taskId = extractTaskId(originalMessage.content || '');
-    if (!taskId) return false;
-    
-    console.log(`🔍 Checking task ${taskId} for forwarding to #${targetChannel.name}`);
-    
-    // Check if task is approved BEFORE forwarding
-    if (!(await isTaskApproved(taskId))) {
-      console.log(`❌ UNAPPROVED: Task ${taskId} is not approved for forwarding`);
-      const embed = new EmbedBuilder()
-        .setColor('#FF4444')
-        .setTitle('🚫 Task Not Approved')
-        .setDescription(`Task **${taskId}** must be approved before it can be forwarded.`)
-        .addFields(
-          { name: '📋 Required Action', value: 'The task needs to be approved with `@approved` first', inline: false },
-          { name: '⚡ Next Steps', value: 'Ask an admin to approve the task before forwarding', inline: false }
-        )
-        .setFooter({ text: 'Approval required for forwarding' })
-        .setTimestamp();
-      
-      await message.reply({ embeds: [embed] });
+    if (!originalMessage) {
+      await message.reply('❌ Could not find the original task message.');
       return false;
     }
     
-    // Check for duplicates BEFORE sending any messages
-    const { sameChannelDuplicate, crossChannelDuplicate } = await checkForDuplicates(taskId, targetChannel.name);
-    
-    if (sameChannelDuplicate) {
-      console.log(`⚠️ DUPLICATE: Task ${taskId} already in #${targetChannel.name}`);
-      const alert = createDuplicateAlert('same', taskId, sameChannelDuplicate, targetChannel, message.author);
-      await message.reply({ embeds: [alert] });
+    // Extract subtask title from original message
+    const subtaskTitle = extractSubtaskTitle(originalMessage.content);
+    if (!subtaskTitle) {
+      console.log('❌ No subtask title found in original message');
+      await message.reply('❌ Could not extract task title from the message.');
       return false;
     }
     
-    if (crossChannelDuplicate) {
-      console.log(`⚠️ CROSS-CHANNEL: Task ${taskId} already in #${crossChannelDuplicate.channelName}`);
-      const alert = createDuplicateAlert('cross', taskId, crossChannelDuplicate, targetChannel, message.author);
-      await message.reply({ embeds: [alert] });
-      
-      // Notify original channel
-      const originalChannel = message.guild.channels.cache.find(c => c.name === crossChannelDuplicate.channelName);
-      if (originalChannel) {
-        await originalChannel.send(
-          `🔄 **Alert**: Task **${taskId}** attempted duplicate forwarding to #${targetChannel.name}`
-        );
+    console.log(`⚠️ Copyright issue reported for: "${subtaskTitle}"`);
+    
+    // Find the task
+    const result = await findTaskBySubtaskTitle(subtaskTitle);
+    if (!result) {
+      console.log(`❌ No task found with subtask: "${subtaskTitle}"`);
+      await message.reply(`❌ Could not find task: **${subtaskTitle}**`);
+      return false;
+    }
+    
+    const { task, subtask } = result;
+    
+    // Extract copyright note (text after @copyright)
+    const copyrightNote = message.content.replace(PATTERNS.copyright, '').trim();
+    
+    // Mark task with copyright issue
+    subtask.copyrightIssue = true;
+    subtask.copyrightNote = copyrightNote || 'Copyright issue detected';
+    subtask.copyrightReportedBy = message.author.id;
+    subtask.copyrightReportedAt = new Date().toISOString();
+    
+    // Update in Firestore
+    await updateTask(task.firestoreId || task.id, task);
+    console.log(`⚠️ Marked "${subtaskTitle}" with copyright issue`);
+    
+    // Get the user who submitted the task (from task assignedTo)
+    const userId = task.assignedTo;
+    if (!userId) {
+      await message.reply('⚠️ Copyright issue recorded, but could not find user to notify.');
+      return true;
+    }
+    
+    // Send DM to user
+    try {
+      const user = await message.client.users.fetch(userId);
+      if (user) {
+        const dmEmbed = DiscordUtils.createEmbed({
+          color: DiscordUtils.colors.error,
+          title: '⚠️ Copyright Issue Detected',
+          description: `Your submitted video has a copyright issue and needs to be fixed.`,
+          fields: [
+            { name: '📋 Task', value: subtaskTitle, inline: false },
+            { name: '⚠️ Issue', value: copyrightNote || 'Copyright claim detected', inline: false },
+            { name: '🔧 Action Required', value: '1. Fix the copyright issue\n2. Re-upload the video\n3. Submit again', inline: false }
+          ],
+          footer: 'Please resolve this as soon as possible'
+        });
+        
+        await user.send({ embeds: [dmEmbed] });
+        console.log(`📧 Sent copyright notice DM to user ${user.username}`);
+        
+        // Confirm in channel
+        await message.react('✅');
+        await message.reply(`✅ Copyright issue recorded for **${subtaskTitle}**.\n\n📧 <@${userId}> has been notified via DM to fix and reupload.`);
       }
-      return false;
+    } catch (dmError) {
+      console.error('❌ Could not send DM:', dmError);
+      await message.reply(`✅ Copyright issue recorded for **${subtaskTitle}**.\n\n⚠️ Could not send DM to <@${userId}>. Please notify them manually.`);
     }
-    
-    // No duplicates found - proceed with forwarding approved task
-    console.log(`✅ APPROVED: Task ${taskId} is approved and will be forwarded`);
-    const embed = buildCompletionEmbed({
-      taskId,
-      sender: message.author.toString(),
-      receiver: receiverMention,
-      taskUrl: originalMessage.url
-    });
-    
-    const attachments = Array.from(originalMessage.attachments?.values?.() || []).map(att => ({
-      attachment: att.url, name: att.name
-    }));
-    
-    await targetChannel.send({ embeds: [embed], files: attachments, allowedMentions: { parse: ['users'] } });
-    
-    // Check receiver registration
-    const receiverUserId = message.mentions.users.first()?.id;
-    if (receiverUserId) {
-      const validation = await validateUserRegistration(receiverUserId, 'task forwarding');
-      if (!validation.isRegistered) {
-        await targetChannel.send(
-          `⚠️ **Note**: ${getUserMention(receiverUserId)} needs to run \`/setup\` before being assigned tasks.`
-        );
-      }
-    }
-    
-    // Store in database
-    await addTaskToChannel(targetChannel.name, targetChannel.id, taskId, message.author.id, receiverUserId);
-    console.log(`✅ Forwarded task ${taskId} to #${targetChannel.name}`);
-    
-    // Task forwarded successfully - Firestore-only system handles data automatically
     
     return true;
     
   } catch (error) {
-    console.error('❌ Forwarding error:', error);
+    console.error('❌ Error handling copyright issue:', error);
     return false;
   }
 };
@@ -446,10 +465,12 @@ const handleFinishedTaskMessage = async (message) => {
   
   console.log(`🚀 Processing: "${message.content}" from ${message.author.username}`);
   
-  // Try approval first, then forwarding
-  return await handleApproval(message) || await handleForwarding(message);
+  // Try copyright check first, then approval, then task submission
+  return await handleCopyrightIssue(message) || await handleApproval(message) || await handleTaskSubmission(message);
 };
 
 module.exports = {
-    handleFinishedTaskMessage
+    handleFinishedTaskMessage,
+    extractSubtaskTitle,
+    findTaskBySubtaskTitle
 };

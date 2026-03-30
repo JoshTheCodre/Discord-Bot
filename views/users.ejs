@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - Task Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="bg-white shadow-lg w-64 p-6 min-h-screen">
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-blue-600">
+                    <i class="fas fa-robot mr-2"></i>Task Bot
+                </h1>
+            </div>
+            
+            <nav class="space-y-2">
+                <a href="/" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-home mr-2"></i> Dashboard
+                </a>
+                <a href="/tasks" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-tasks mr-2"></i> Tasks
+                </a>
+                <a href="/users" class="block px-4 py-2 rounded-lg bg-blue-600 text-white">
+                    <i class="fas fa-users mr-2"></i> Users
+                </a>
+                <a href="/leaderboard" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-trophy mr-2"></i> Leaderboard
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1">
+            <!-- Header -->
+            <header class="bg-white shadow">
+                <div class="max-w-7xl mx-auto px-6 py-4">
+                    <h2 class="text-3xl font-bold text-gray-900">Users</h2>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main class="max-w-7xl mx-auto px-6 py-8">
+                <% if (users.length === 0) { %>
+                    <div class="bg-white rounded-lg shadow p-12 text-center">
+                        <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500">No users found</p>
+                    </div>
+                <% } else { %>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <% users.forEach(user => { %>
+                            <% const displayName = user.discordUsername || user.name || user.username || user.discordId || user.id || 'Unknown User'; %>
+                            <% const displayId = user.discordId || user.id || user.userId || 'N/A'; %>
+                            <% const initials = String(displayName).substring(0, 2).toUpperCase(); %>
+                            <div class="bg-white rounded-lg shadow hover:shadow-lg transition p-6">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                                        <%= initials %>
+                                    </div>
+                                    <div class="ml-4">
+                                        <h3 class="font-semibold text-gray-900"><%= displayName %></h3>
+                                        <p class="text-xs text-gray-500"><%= displayId %></p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3 border-t pt-4">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600">
+                                            <i class="fas fa-check-circle text-green-600 mr-2"></i>Completed
+                                        </span>
+                                        <span class="text-lg font-bold text-green-600"><%= user.completedCount || 0 %></span>
+                                    </div>
+                                    
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-sm text-gray-600">
+                                            <i class="fas fa-share text-orange-600 mr-2"></i>Posted
+                                        </span>
+                                        <span class="text-lg font-bold text-orange-600"><%= user.postedCount || 0 %></span>
+                                    </div>
+
+                                    <% if (user.totalContributions > 0) { %>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-sm text-gray-600">
+                                                <i class="fas fa-chart-pie text-purple-600 mr-2"></i>Total
+                                            </span>
+                                            <span class="text-lg font-bold text-purple-600"><%= user.totalContributions %></span>
+                                        </div>
+
+                                        <div class="mt-4">
+                                            <p class="text-xs text-gray-500 mb-2">Completion Rate</p>
+                                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                                <% const rate = Math.round((user.completionRate || 0) * 100); %>
+                                                <div class="bg-blue-600 h-2 rounded-full transition-all progress-fill" data-progress="<%= rate %>"></div>
+                                            </div>
+                                            <p class="text-xs text-gray-600 mt-1"><%= rate %>%</p>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="text-center py-4">
+                                            <p class="text-sm text-gray-500">No contributions yet</p>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </main>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.progress-fill[data-progress]').forEach((element) => {
+            const progress = Number(element.getAttribute('data-progress'));
+            const normalized = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+            element.style.width = `${normalized}%`;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= task.title %> - Task Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="bg-white shadow-lg w-64 p-6 min-h-screen">
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-blue-600">
+                    <i class="fas fa-robot mr-2"></i>Task Bot
+                </h1>
+            </div>
+            
+            <nav class="space-y-2">
+                <a href="/" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-home mr-2"></i> Dashboard
+                </a>
+                <a href="/tasks" class="block px-4 py-2 rounded-lg bg-blue-600 text-white">
+                    <i class="fas fa-tasks mr-2"></i> Tasks
+                </a>
+                <a href="/users" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-users mr-2"></i> Users
+                </a>
+                <a href="/leaderboard" class="block px-4 py-2 rounded-lg text-gray-700 hover:bg-blue-100">
+                    <i class="fas fa-trophy mr-2"></i> Leaderboard
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1">
+            <!-- Header -->
+            <header class="bg-white shadow">
+                <div class="max-w-7xl mx-auto px-6 py-4">
+                    <div class="flex items-center">
+                        <a href="/tasks" class="text-blue-600 hover:text-blue-800 mr-4">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                        <h2 class="text-3xl font-bold text-gray-900"><%= task.title %></h2>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main class="max-w-7xl mx-auto px-6 py-8">
+                <!-- Task Info -->
+                <div class="bg-white rounded-lg shadow p-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <p class="text-xl font-semibold <%= task.completed ? 'text-green-600' : 'text-yellow-600' %>">
+                                <%= task.completed ? 'Completed' : 'In Progress' %>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Total Subtasks</p>
+                            <p class="text-xl font-semibold text-gray-900"><%= task.subtasks?.length || 0 %></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Completed</p>
+                            <p class="text-xl font-semibold text-green-600"><%= task.subtasks?.filter(s => s.completed).length || 0 %></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Posted</p>
+                            <p class="text-xl font-semibold text-orange-600"><%= task.subtasks?.filter(s => s.posted).length || 0 %></p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <p class="text-sm text-gray-500 mb-2">Completion Progress</p>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <% const completed = task.subtasks?.filter(s => s.completed).length || 0; const total = task.subtasks?.length || 1; const percent = Math.round((completed / total) * 100); %>
+                            <div class="bg-blue-600 h-3 rounded-full transition-all progress-fill" data-progress="<%= percent %>"></div>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-2"><%= percent %>% completed (<%= completed %>/<%= total %>)</p>
+                    </div>
+                </div>
+
+                <!-- Subtasks -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Subtasks</h3>
+                    
+                    <% if (!task.subtasks || task.subtasks.length === 0) { %>
+                        <div class="text-center py-12">
+                            <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
+                            <p class="text-gray-500">No subtasks found</p>
+                        </div>
+                    <% } else { %>
+                        <div class="space-y-4">
+                            <% task.subtasks.forEach(subtask => { %>
+                                <div class="border rounded-lg p-4 hover:bg-gray-50 transition">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <h4 class="font-semibold text-gray-900"><%= subtask.title %></h4>
+                                            <p class="text-sm text-gray-600 mt-1">
+                                                <i class="fas fa-id-card mr-1"></i> <%= subtask.title %>
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <% if (subtask.completed) { %>
+                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                    <i class="fas fa-check-circle mr-1"></i> Completed
+                                                </span>
+                                            <% } %>
+                                            <% if (subtask.posted) { %>
+                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                                                    <i class="fas fa-share mr-1"></i> Posted
+                                                </span>
+                                            <% } %>
+                                            <% if (subtask.copyrightIssue) { %>
+                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i> Copyright
+                                                </span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+                                        <% if (subtask.submittedBy) { %>
+                                            <div class="flex items-center text-gray-600">
+                                                <i class="fas fa-user-circle mr-2 text-blue-600"></i>
+                                                Submitted by: <span class="font-semibold ml-1"><%= subtask.submittedBy %></span>
+                                            </div>
+                                        <% } %>
+                                        <% if (subtask.postedBy) { %>
+                                            <div class="flex items-center text-gray-600">
+                                                <i class="fas fa-share mr-2 text-orange-600"></i>
+                                                Posted by: <span class="font-semibold ml-1"><%= subtask.postedBy %></span>
+                                            </div>
+                                        <% } %>
+                                        <% if (subtask.submittedAt) { %>
+                                            <div class="flex items-center text-gray-600">
+                                                <i class="fas fa-calendar mr-2 text-gray-600"></i>
+                                                <%= new Date(subtask.submittedAt).toLocaleDateString() %>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } %>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.progress-fill[data-progress]').forEach((element) => {
+            const progress = Number(element.getAttribute('data-progress'));
+            const normalized = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+            element.style.width = `${normalized}%`;
+        });
+    </script>
+</body>
+</html>

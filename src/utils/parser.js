@@ -57,7 +57,17 @@ function parseDeadline(str) {
 function parseSubTasks(lines) {
     const tasks = lines.map(line => {
         const match = line.trim().match(/^\s*(\d+)\.\s+(.+?)\s*$/);
-        return match ? { subTaskID: parseInt(match[1]), title: match[2].trim(), status: 'pending', completedAt: null } : null;
+        if (!match) return null;
+        
+        const title = match[2].trim();
+        
+        return { 
+            subTaskID: title,  // Use the title itself as the ID
+            title: title, 
+            status: 'pending', 
+            completedAt: null,
+            posted: false
+        };
     }).filter(Boolean);
     
     return tasks.length > 0 ? tasks : undefined;

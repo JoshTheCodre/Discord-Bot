@@ -113,6 +113,7 @@ const handleSetupModalSubmit = async (interaction) => {
             name: name,
             birthday: birthday,
             role: role,
+            level: 1, // Default level for new users
             dateJoined: now,
             setupCompletedAt: now
         };

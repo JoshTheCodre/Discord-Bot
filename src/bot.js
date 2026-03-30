@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Partials } = require('discord.js');
 require('dotenv').config();
 const { readData, saveTask, saveUser } = require('./services/storage');
 const { generateTaskId, resolveUserId, getUserDisplayName, ensureUser, validateUserRegistration, getUserMention } = require('./utils/userUtils');
@@ -14,11 +14,42 @@ const MovieReminderService = require('./services/movieReminderService');
 const DiscordUtils = require('./utils/discordUtils');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessageReactions
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 // Prevent duplicate processing
 const processedMessages = new Set();
+
+async function safeRespondToInteraction(interaction, payload) {
+    try {
+        if (interaction.deferred) {
+            await interaction.editReply(payload);
+            return true;
+        }
+
+        if (interaction.replied) {
+            await interaction.followUp({ ...payload, flags: payload.flags ?? 64 });
+            return true;
+        }
+
+        await interaction.reply(payload);
+        return true;
+    } catch (error) {
+        if (error?.code === 10062) {
+            console.warn('⚠️ Interaction expired before response could be sent.');
+            return false;
+        }
+
+        console.error('Error sending interaction response:', error);
+        return false;
+    }
+}
 
 // Handle performance command
 async function handlePerformanceCommand(interaction) {
@@ -46,7 +77,6 @@ async function handlePerformanceCommand(interaction) {
                     { name: '📺 Channels Synced', value: result.channels.channelsCount?.toString() || '0', inline: true },
                     { name: '📋 Total Subtasks', value: result.users.totalSubtasks?.toString() || '0', inline: true },
                     { name: '✅ Completed', value: result.users.completedSubtasks?.toString() || '0', inline: true },
-                    { name: '� Total Forwarded', value: result.channels.totalForwarded?.toString() || '0', inline: true },
                     { name: '📊 Sheets URL', value: '[View Live Data](https://docs.google.com/spreadsheets/d/1S9XfOmIS4latiGRmYHOJGx_XSs9bSc8b_BHNNhPlEMA/edit)', inline: false }
                 );
             } else {
@@ -246,12 +276,8 @@ async function handleMoviesCommand(interaction) {
             .setTitle('❌ Command Error')
             .setDescription('There was an error processing the movies command.')
             .setTimestamp();
-        
-        if (interaction.deferred) {
-            await interaction.editReply({ embeds: [embed] });
-        } else {
-            await interaction.reply({ embeds: [embed], flags: 64 });
-        }
+
+        await safeRespondToInteraction(interaction, { embeds: [embed], flags: 64 });
     }
 }
 
@@ -333,15 +359,92 @@ client.on('interactionCreate', async (interaction) => {
             content: '❌ An error occurred while processing your request.',
             flags: 64
         };
-        
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMessage);
-        } else {
-            await interaction.reply(errorMessage);
-        }
+
+        await safeRespondToInteraction(interaction, errorMessage);
     }
 });
 
+
+// Handle reactions for marking tasks as posted
+client.on('messageReactionAdd', async (reaction, user) => {
+    console.log(`🔔 Reaction detected: ${reaction.emoji.name} by ${user.username}`);
+    
+    try {
+        // Ignore bot reactions
+        if (user.bot) {
+            console.log('⏭️ Skipping bot reaction');
+            return;
+        }
+        
+        // Fetch partial reactions/messages
+        if (reaction.partial) {
+            console.log('📥 Fetching partial reaction...');
+            await reaction.fetch();
+        }
+        
+        const message = reaction.message;
+        console.log(`📨 Message channel: ${message.channel?.name || 'Unknown'}`);
+        
+        // Only process in finished-tasks channels
+        const finishedTaskChannels = ['finished-tasks', 'shorts-finished'];
+        const channelName = message.channel?.name?.toLowerCase() || message.channel?.parent?.name?.toLowerCase();
+        
+        console.log(`📍 Channel name to check: "${channelName}"`);
+        
+        if (!finishedTaskChannels.includes(channelName)) {
+            console.log(`⏭️ Not a finished-tasks channel, skipping`);
+            return;
+        }
+        
+        // Check if reaction is a regional indicator (J/O/D/S)
+        const regionalIndicators = ['🇯', '🇴', '🇩', '🇸']; // J, O, D, S
+        const isRegionalIndicator = regionalIndicators.includes(reaction.emoji.name);
+        
+        console.log(`🔤 Is regional indicator? ${isRegionalIndicator} (emoji: ${reaction.emoji.name})`);
+        
+        if (!isRegionalIndicator) {
+            console.log('⏭️ Not a regional indicator, skipping');
+            return;
+        }
+        
+        console.log(`📍 Post reaction detected: ${reaction.emoji.name} by ${user.username}`);
+        
+        // Extract subtask title from message
+        const { extractSubtaskTitle, findTaskBySubtaskTitle } = require('./services/finishedTaskService');
+        const subtaskTitle = extractSubtaskTitle(message.content);
+        
+        if (!subtaskTitle) {
+            console.log('❌ Could not extract subtask title from message');
+            return;
+        }
+        
+        // Find and update the task
+        const result = await findTaskBySubtaskTitle(subtaskTitle);
+        if (!result) {
+            console.log(`❌ Task not found for: ${subtaskTitle}`);
+            return;
+        }
+        
+        const { task, subtask } = result;
+        
+        // Update posted status
+        subtask.posted = true;
+        subtask.postedBy = user.id;
+        subtask.postedAt = new Date().toISOString();
+        
+        // Save to Firestore
+        const { updateTask } = require('./firebase/firestoreService');
+        await updateTask(task.firestoreId || task.id, task);
+        
+        console.log(`✅ Marked "${subtaskTitle}" as posted by ${user.username}`);
+        
+        // React to confirm
+        await message.react('📌');
+        
+    } catch (error) {
+        console.error('❌ Error handling reaction:', error);
+    }
+});
 
 
 client.on('messageCreate', async (message) => {
@@ -363,7 +466,7 @@ client.on('messageCreate', async (message) => {
         }
     }
     
-    // Handle finished task forwarding (replies and threads in #finished-tasks channel)
+    // Handle finished task approvals in #finished-tasks channel
     const finishedTaskHandled = await handleFinishedTaskMessage(message);
     if (finishedTaskHandled) return;
     
@@ -502,6 +605,9 @@ if (missingEnvVars.length > 0) {
     console.error('Please set these environment variables in your deployment platform.');
     process.exit(1);
 }
+
+// Start web dashboard
+const webServer = require('./web/server');
 
 console.log('🚀 Starting Discord bot...');
 client.login(process.env.DISCORD_BOT_TOKEN);
