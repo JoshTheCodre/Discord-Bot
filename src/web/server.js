@@ -11,6 +11,15 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../../views'));
 app.use(express.json());
 
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'discord-bot-web',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Routes
 app.get('/', async (req, res) => {
   try {

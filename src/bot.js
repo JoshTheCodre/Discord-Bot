@@ -418,24 +418,25 @@ client.on('messageReactionAdd', async (reaction, user) => {
             return;
         }
         
-        // Find and update the task
+        // Find and update the task atomically
         const result = await findTaskBySubtaskTitle(subtaskTitle);
         if (!result) {
             console.log(`❌ Task not found for: ${subtaskTitle}`);
             return;
         }
-        
-        const { task, subtask } = result;
-        
-        // Update posted status
-        subtask.posted = true;
-        subtask.postedBy = user.id;
-        subtask.postedAt = new Date().toISOString();
-        
-        // Save to Firestore
-        const { updateTask } = require('./firebase/firestoreService');
-        await updateTask(task.firestoreId || task.id, task);
-        
+
+        const { patchSubtaskByTitleAtomic } = require('./firebase/firestoreService');
+        const patchResult = await patchSubtaskByTitleAtomic(subtaskTitle, {
+            posted: true,
+            postedBy: user.id,
+            postedAt: new Date().toISOString()
+        });
+
+        if (!patchResult.success) {
+            console.log(`❌ Failed to mark posted for "${subtaskTitle}": ${patchResult.reason}`);
+            return;
+        }
+
         console.log(`✅ Marked "${subtaskTitle}" as posted by ${user.username}`);
         
         // React to confirm
@@ -567,28 +568,6 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// Simple HTTP server for health checks (required by Render)
-const http = require('http');
-const port = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-    if (req.url === '/health') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'healthy',
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime()
-        }));
-    } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not Found');
-    }
-});
-
-server.listen(port, () => {
-    console.log(`🌐 Health check server running on port ${port}`);
-});
-
 // Debug environment variables
 console.log('🔍 Environment check:');
 console.log(`- NODE_ENV: ${process.env.NODE_ENV}`);
@@ -600,14 +579,13 @@ console.log(`- GOOGLE_CLOUD_CREDENTIALS: ${process.env.GOOGLE_CLOUD_CREDENTIALS 
 const requiredEnvVars = ['DISCORD_BOT_TOKEN', 'CLIENT_ID'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
+// Start web dashboard
+require('./web/server');
+
 if (missingEnvVars.length > 0) {
     console.error('❌ Missing required environment variables:', missingEnvVars);
-    console.error('Please set these environment variables in your deployment platform.');
-    process.exit(1);
+    console.error('⚠️ Web server will remain online for health checks, but Discord bot login is skipped.');
+} else {
+    console.log('🚀 Starting Discord bot...');
+    client.login(process.env.DISCORD_BOT_TOKEN);
 }
-
-// Start web dashboard
-const webServer = require('./web/server');
-
-console.log('🚀 Starting Discord bot...');
-client.login(process.env.DISCORD_BOT_TOKEN);
