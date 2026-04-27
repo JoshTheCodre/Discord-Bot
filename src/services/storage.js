@@ -111,7 +111,8 @@ async function saveTask(taskData) {
 
 async function saveUser(userData) {
     try {
-        const existingUser = await getUser(userData.id);
+        const lookupKey = userData?.id || userData?.discordId || userData?.name;
+        const existingUser = await getUser(lookupKey);
         
         if (existingUser) {
             console.log(`👤 User ${userData.name} already exists in Firestore`);
@@ -174,7 +175,7 @@ async function getTaskByTaskId(taskId) {
 async function getUserById(userId) {
     try {
         const data = await readData();
-        return data.users.find(user => user.id === userId);
+        return data.users.find(user => user.id === userId || user.discordId === userId);
     } catch (error) {
         console.error('❌ Error getting user by ID:', error);
         return null;

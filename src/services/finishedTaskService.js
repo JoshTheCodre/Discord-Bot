@@ -1,6 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-const { readData, getTaskByTaskId } = require('./storage');
-const { updateTask } = require('../firebase/firestoreService');
+const { getTaskByTaskId } = require('./storage');
+const {
+  findTaskBySubtaskTitle: findTaskBySubtaskTitleInFirestore,
+  patchSubtaskAtomic,
+  patchSubtaskByTitleAtomic,
+  normalizeTextKey
+} = require('../firebase/firestoreService');
 const { ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
 
@@ -60,38 +64,18 @@ const extractSubtaskTitle = (text) => {
 // Find task containing the subtask with given title
 const findTaskBySubtaskTitle = async (subtaskTitle) => {
   try {
-    const data = await readData();
-    const tasks = data.tasks || [];
-    
-    console.log(`🔎 Searching ${tasks.length} tasks for subtask: "${subtaskTitle}"`);
-    
-    // Search through all tasks for matching subtask
-    for (const task of tasks) {
-      if (task.subTasks && Array.isArray(task.subTasks)) {
-        console.log(`  Checking task ${task.taskId} with ${task.subTasks.length} subtasks`);
-        
-        const subtask = task.subTasks.find(st => {
-          const titleMatch = st.title === subtaskTitle;
-          const idMatch = st.subTaskID === subtaskTitle;
-          
-          if (titleMatch || idMatch) {
-            console.log(`  ✅ Found match! Title: "${st.title}", ID: "${st.subTaskID}"`);
-          }
-          
-          return titleMatch || idMatch;
-        });
-        
-        if (subtask) {
-          console.log(`✅ Found subtask in task ${task.taskId}`);
-          return { 
-            task, 
-            subtask,
-            taskGroup: task.taskId 
-          };
-        }
-      }
+    const normalizedTitle = normalizeTextKey(subtaskTitle);
+    if (!normalizedTitle) {
+      return null;
     }
-    
+
+    const result = await findTaskBySubtaskTitleInFirestore(normalizedTitle);
+
+    if (result) {
+      console.log(`✅ Found subtask in task ${result.task.taskId || result.task.id}`);
+      return result;
+    }
+
     console.log(`❌ No matching subtask found for: "${subtaskTitle}"`);
     return null;
   } catch (error) {
@@ -140,57 +124,45 @@ const parseTaskId = (taskId) => {
 
 const completeSubtask = async (taskGroup, subtaskId) => {
   try {
-    // Get task from Firestore
     console.log(`🔍 Looking for task ${taskGroup} in Firestore...`);
-    let task = await getTaskByTaskId(taskGroup);
-    
-    if (!task) {   
-      console.log(`❌ Task ${taskGroup} not found in Firestore`);
-      return null;
-    }
-    
-    console.log(`✅ Found task ${taskGroup} in Firestore`);
-    
+    const task = await getTaskByTaskId(taskGroup);
+
     if (!task) {
-      console.log(`❌ Task group ${taskGroup} not found in local storage or Firestore`);
+      console.log(`❌ Task ${taskGroup} not found in Firestore`);
       return { success: false, reason: 'task_not_found' };
     }
-    
-    // Find subtask by ID (title or legacy numeric ID)
-    const subtask = task.subTasks?.find(st => {
-      // Compare as strings for title-based IDs
-      return st.subTaskID === subtaskId || 
-             st.subTaskID == subtaskId ||  // Loose equality for numbers
-             st.title === subtaskId;        // Also try matching by title directly
+
+    const existingSubtask = task.subTasks?.find((subtask) => {
+      const candidateKey = normalizeTextKey(subtask.titleKey || subtask.title || subtask.subTaskID);
+      const targetKey = normalizeTextKey(subtaskId);
+      return candidateKey === targetKey || String(subtask.subTaskID) === String(subtaskId);
     });
-    
-    if (!subtask) {
+
+    if (!existingSubtask) {
       console.log(`❌ Subtask ${subtaskId} not found in task ${taskGroup}`);
-      console.log(`Available subtasks: ${task.subTasks?.map(st => `"${st.subTaskID}"`).join(', ')}`);
       return { success: false, reason: 'subtask_not_found' };
     }
-    
-    // Check if already completed
-    if (subtask.status === 'completed') {
-      console.log(`⚠️ Subtask ${taskGroup}_${subtaskId} already completed at ${subtask.completedAt}`);
-      return { 
-        success: false, 
+
+    if (existingSubtask.status === 'completed') {
+      console.log(`⚠️ Subtask ${taskGroup}_${subtaskId} already completed at ${existingSubtask.completedAt}`);
+      return {
+        success: false,
         reason: 'already_completed',
-        completedAt: subtask.completedAt 
+        completedAt: existingSubtask.completedAt
       };
     }
-    
-    // Mark subtask as completed
-    subtask.status = 'completed';
-    subtask.completedAt = new Date().toISOString();
-    
-    // Update task in Firestore
-    await updateTask(task.firestoreId || task.id, task);
-    console.log(`✅ Updated task ${taskGroup} in Firestore`);
-    
+
+    const updateResult = await patchSubtaskAtomic(task.id || task.taskId, subtaskId, {
+      status: 'completed',
+      completedAt: new Date().toISOString()
+    });
+
+    if (!updateResult.success) {
+      return updateResult;
+    }
+
     console.log(`✅ Marked subtask ${taskGroup}${subtaskId} as completed`);
     return { success: true };
-    
   } catch (error) {
     console.error('Error marking subtask as completed:', error);
     return { success: false, reason: 'error', error };
@@ -325,13 +297,19 @@ const handleTaskSubmission = async (message) => {
       return true;
     }
     
-    // Mark subtask as completed immediately
-    subtask.status = 'completed';
-    subtask.completedAt = new Date().toISOString();
-    subtask.posted = subtask.posted !== undefined ? subtask.posted : false; // Ensure posted field exists
-    
-    // Update task in Firestore
-    await updateTask(task.firestoreId || task.id, task);
+    // Mark subtask as completed immediately (atomic update)
+    const updateResult = await patchSubtaskByTitleAtomic(subtaskTitle, {
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      posted: subtask.posted !== undefined ? subtask.posted : false
+    });
+
+    if (!updateResult.success) {
+      console.log(`❌ Failed to update subtask "${subtaskTitle}": ${updateResult.reason}`);
+      await message.reply(`❌ Failed to update **${subtaskTitle}**. Please try again.`);
+      return false;
+    }
+
     console.log(`✅ Marked subtask "${subtaskTitle}" as completed`);
     
     // Create a thread for this submission if not already in one
@@ -403,14 +381,20 @@ const handleCopyrightIssue = async (message) => {
     // Extract copyright note (text after @copyright)
     const copyrightNote = message.content.replace(PATTERNS.copyright, '').trim();
     
-    // Mark task with copyright issue
-    subtask.copyrightIssue = true;
-    subtask.copyrightNote = copyrightNote || 'Copyright issue detected';
-    subtask.copyrightReportedBy = message.author.id;
-    subtask.copyrightReportedAt = new Date().toISOString();
-    
-    // Update in Firestore
-    await updateTask(task.firestoreId || task.id, task);
+    // Mark task with copyright issue (atomic update)
+    const issueTimestamp = new Date().toISOString();
+    const patchResult = await patchSubtaskByTitleAtomic(subtaskTitle, {
+      copyrightIssue: true,
+      copyrightNote: copyrightNote || 'Copyright issue detected',
+      copyrightReportedBy: message.author.id,
+      copyrightReportedAt: issueTimestamp
+    });
+
+    if (!patchResult.success) {
+      await message.reply(`❌ Could not update copyright status for **${subtaskTitle}**.`);
+      return false;
+    }
+
     console.log(`⚠️ Marked "${subtaskTitle}" with copyright issue`);
     
     // Get the user who submitted the task (from task assignedTo)

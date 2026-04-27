@@ -55,6 +55,12 @@ function parseDeadline(str) {
 
 
 function parseSubTasks(lines) {
+    const toTitleKey = (value) => String(value || '')
+        .replace(/[*_~`]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
     const tasks = lines.map(line => {
         const match = line.trim().match(/^\s*(\d+)\.\s+(.+?)\s*$/);
         if (!match) return null;
@@ -63,7 +69,8 @@ function parseSubTasks(lines) {
         
         return { 
             subTaskID: title,  // Use the title itself as the ID
-            title: title, 
+            title: title,
+            titleKey: toTitleKey(title),
             status: 'pending', 
             completedAt: null,
             posted: false
