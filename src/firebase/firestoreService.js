@@ -828,6 +828,40 @@ async function getAllChannels() {
   }
 }
 
+// === ADMIN AUTH FUNCTIONS ===
+
+async function getAdminByEmail(email) {
+  try {
+    const adminRef = doc(db, 'admins', email.toLowerCase().trim());
+    const snap = await getDoc(adminRef);
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  } catch (error) {
+    console.error('❌ Error getting admin:', error);
+    throw error;
+  }
+}
+
+async function ensureDefaultAdmin(bcrypt) {
+  try {
+    const email = 'admin@gmail.com';
+    const adminRef = doc(db, 'admins', email);
+    const snap = await getDoc(adminRef);
+    if (!snap.exists()) {
+      const hash = await bcrypt.hash('admin', 10);
+      await setDoc(adminRef, {
+        email,
+        passwordHash: hash,
+        name: 'Admin',
+        createdAt: new Date()
+      });
+      console.log('✅ Default admin account created');
+    }
+  } catch (error) {
+    console.error('❌ Error ensuring default admin:', error);
+  }
+}
+
 // Export functions
 console.log('✅ FirestoreService functions loaded successfully');
 
@@ -850,5 +884,7 @@ module.exports = {
   createChannel,
   getChannel,
   updateChannel,
-  getAllChannels
+  getAllChannels,
+  getAdminByEmail,
+  ensureDefaultAdmin
 };

@@ -1,8 +1,9 @@
 const express = require('express');
 const path = require('path');
 const helmet = require('helmet');
-const { readData } = require('../services/storage');
-const { getAllTasks, getAllUsers, patchSubtaskAtomic } = require('../firebase/firestoreService');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
+const { getAllTasks, getAllUsers, patchSubtaskAtomic, getAdminByEmail, ensureDefaultAdmin } = require('../firebase/firestoreService');
 
 const app = express();
 
@@ -12,12 +13,31 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'solomax-studios-secret-2024',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  }
+}));
+
 // Middleware
 app.use(express.static(path.join(__dirname, '../../public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../../views'));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
+// Auth guard — applied to all protected routes
+function requireAuth(req, res, next) {
+  if (req.session && req.session.adminEmail) return next();
+  res.redirect('/login');
+}
+
+// Health check (public)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -25,6 +45,39 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
+});
+
+// Login page
+app.get('/login', (req, res) => {
+  if (req.session && req.session.adminEmail) return res.redirect('/');
+  res.render('login', { error: null });
+});
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.render('login', { error: 'Email and password are required.' });
+  }
+  try {
+    const admin = await getAdminByEmail(email.trim().toLowerCase());
+    if (!admin) {
+      return res.render('login', { error: 'Invalid email or password.' });
+    }
+    const match = await bcrypt.compare(password, admin.passwordHash);
+    if (!match) {
+      return res.render('login', { error: 'Invalid email or password.' });
+    }
+    req.session.adminEmail = admin.email;
+    req.session.adminName = admin.name || 'Admin';
+    res.redirect('/');
+  } catch (err) {
+    console.error('Login error:', err);
+    res.render('login', { error: 'Something went wrong. Please try again.' });
+  }
+});
+
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/login'));
 });
 
 // Convert Firestore Timestamp / Date / string → ISO string
@@ -35,8 +88,8 @@ function serializeDate(val) {
   return val;
 }
 
-// Routes
-app.get('/', async (req, res) => {
+// Protected routes
+app.get('/', requireAuth, async (req, res) => {
   try {
     const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
 
@@ -63,15 +116,14 @@ app.get('/', async (req, res) => {
       };
     });
 
-    res.render('index', { ...stats, users: enrichedUsers });
+    res.render('index', { ...stats, users: enrichedUsers, adminName: req.session.adminName });
   } catch (error) {
     console.error('Error loading dashboard:', error);
     res.status(500).send('Error loading dashboard');
   }
 });
 
-// Tasks page
-app.get('/tasks', async (req, res) => {
+app.get('/tasks', requireAuth, async (req, res) => {
   try {
     const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
 
@@ -93,64 +145,43 @@ app.get('/tasks', async (req, res) => {
       postedCount: task.subTasks?.filter(st => st.posted === true).length || 0
     }));
 
-    res.render('tasks', { tasks: enrichedTasks });
+    res.render('tasks', { tasks: enrichedTasks, adminName: req.session.adminName });
   } catch (error) {
     console.error('Error loading tasks:', error);
     res.status(500).send('Error loading tasks');
   }
 });
 
-// Task details
-app.get('/tasks/:taskId', async (req, res) => {
+app.get('/tasks/:taskId', requireAuth, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     const task = tasks.find(t => t.taskId === req.params.taskId || t.id === req.params.taskId);
-    
     if (!task) {
       return res.status(404).render('error', { message: 'Task not found' });
     }
-    
-    res.render('task-detail', { task });
+    res.render('task-detail', { task, adminName: req.session.adminName });
   } catch (error) {
     console.error('Error loading task:', error);
     res.status(500).send('Error loading task');
   }
 });
 
-// Performance
-app.get('/performance', async (req, res) => {
+app.get('/performance', requireAuth, async (req, res) => {
   try {
-    const users = await getAllUsers();
-    const tasks = await getAllTasks();
-    
+    const [users, tasks] = await Promise.all([getAllUsers(), getAllTasks()]);
+
     const leaderboard = users.map(user => {
       const userTasks = tasks.filter(t =>
         t.assignedTo === user.discordId || t.assignedTo === user.id || t.assignedTo === user.userId || t.assignedTo === user.name
       );
-      
-      const completedCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0
-      );
-      
-      const totalCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.length || 0), 0
-      );
-      
-      const postedCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0
-      );
-
-      const discordId = user.discordId || user.id || user.userId || '';
-      const discordUsername = user.discordUsername || user.name || user.username || 'Unknown User';
-      
-      const copyrightCount = userTasks.reduce((sum, t) =>
-        sum + (t.subTasks?.filter(st => st.copyrightIssue && !st.copyrightFixed).length || 0), 0
-      );
-
+      const completedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0);
+      const totalCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.length || 0), 0);
+      const postedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0);
+      const copyrightCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.copyrightIssue && !st.copyrightFixed).length || 0), 0);
       return {
         ...user,
-        discordId,
-        discordUsername,
+        discordId: user.discordId || user.id || user.userId || '',
+        discordUsername: user.discordUsername || user.name || user.username || 'Unknown User',
         completedCount,
         totalCount,
         postedCount,
@@ -170,15 +201,14 @@ app.get('/performance', async (req, res) => {
       openCopyright: allSubtasks.filter(st => st.copyrightIssue && !st.copyrightFixed).length
     };
 
-    res.render('performance', { users: leaderboard, reportStats });
+    res.render('performance', { users: leaderboard, reportStats, adminName: req.session.adminName });
   } catch (error) {
-    console.error('Error loading leaderboard:', error);
-    res.status(500).send('Error loading leaderboard');
+    console.error('Error loading performance:', error);
+    res.status(500).send('Error loading performance');
   }
 });
 
-// Flagged content page
-app.get('/flags', async (req, res) => {
+app.get('/flags', requireAuth, async (req, res) => {
   try {
     const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
 
@@ -202,15 +232,14 @@ app.get('/flags', async (req, res) => {
     const totalIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.length, 0);
     const fixedIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.filter(st => st.copyrightFixed).length, 0);
 
-    res.render('flags', { tasks: copyrightTasks, totalIssues, fixedIssues });
+    res.render('flags', { tasks: copyrightTasks, totalIssues, fixedIssues, adminName: req.session.adminName });
   } catch (error) {
-    console.error('Error loading copyright page:', error);
+    console.error('Error loading flags page:', error);
     res.status(500).render('error', { statusCode: 500, message: error.message });
   }
 });
 
-// Toggle flagged content fixed status
-app.post('/api/flags/toggle', async (req, res) => {
+app.post('/api/flags/toggle', requireAuth, async (req, res) => {
   try {
     const { taskId, subtaskTitle, fixed } = req.body;
     if (!taskId || !subtaskTitle) {
@@ -224,8 +253,7 @@ app.post('/api/flags/toggle', async (req, res) => {
   }
 });
 
-// API endpoints
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', requireAuth, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     res.json(tasks);
@@ -234,7 +262,7 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const users = await getAllUsers();
     res.json(users);
@@ -243,32 +271,23 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', requireAuth, async (req, res) => {
   try {
-    const tasks = await getAllTasks();
-    const users = await getAllUsers();
-    
+    const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
     const stats = {
       totalTasks: tasks.length,
       totalUsers: users.length,
-      completedTasks: tasks.reduce((sum, t) => {
-        const completed = t.subTasks?.filter(st => st.status === 'completed').length || 0;
-        return sum + completed;
-      }, 0),
+      completedTasks: tasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0),
       totalSubtasks: tasks.reduce((sum, t) => sum + (t.subTasks?.length || 0), 0),
-      postedTasks: tasks.reduce((sum, t) => {
-        const posted = t.subTasks?.filter(st => st.posted === true).length || 0;
-        return sum + posted;
-      }, 0)
+      postedTasks: tasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0)
     };
-    
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 404 Error Handler
+// 404
 app.use((req, res) => {
   res.status(404).render('error', {
     statusCode: 404,
@@ -277,7 +296,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error('Express error:', err);
   res.status(err.status || 500).render('error', {
@@ -289,8 +308,11 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 10000;
-const server = app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`📊 Web dashboard running on http://localhost:${PORT}`);
+  const bcryptForSetup = require('bcryptjs');
+  const { ensureDefaultAdmin } = require('../firebase/firestoreService');
+  await ensureDefaultAdmin(bcryptForSetup);
 });
 
 module.exports = app;
