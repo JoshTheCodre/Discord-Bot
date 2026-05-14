@@ -190,8 +190,8 @@ app.get('/leaderboard', async (req, res) => {
   }
 });
 
-// Copyright issues page
-app.get('/copyright', async (req, res) => {
+// Flagged content page
+app.get('/flags', async (req, res) => {
   try {
     const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
 
@@ -215,15 +215,15 @@ app.get('/copyright', async (req, res) => {
     const totalIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.length, 0);
     const fixedIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.filter(st => st.copyrightFixed).length, 0);
 
-    res.render('copyright', { tasks: copyrightTasks, totalIssues, fixedIssues });
+    res.render('flags', { tasks: copyrightTasks, totalIssues, fixedIssues });
   } catch (error) {
     console.error('Error loading copyright page:', error);
     res.status(500).render('error', { statusCode: 500, message: error.message });
   }
 });
 
-// Toggle copyright fixed status
-app.post('/api/copyright/toggle', async (req, res) => {
+// Toggle flagged content fixed status
+app.post('/api/flags/toggle', async (req, res) => {
   try {
     const { taskId, subtaskTitle, fixed } = req.body;
     if (!taskId || !subtaskTitle) {
