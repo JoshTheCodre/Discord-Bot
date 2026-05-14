@@ -27,6 +27,14 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Convert Firestore Timestamp / Date / string → ISO string
+function serializeDate(val) {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') return val.toDate().toISOString();
+  if (val instanceof Date) return val.toISOString();
+  return val;
+}
+
 // Routes
 app.get('/', async (req, res) => {
   try {
@@ -78,6 +86,7 @@ app.get('/tasks', async (req, res) => {
 
     const enrichedTasks = tasks.map(task => ({
       ...task,
+      createdAt: serializeDate(task.createdAt),
       assignedToName: usersMap[task.assignedTo] || task.assignedTo || 'Unassigned',
       completedCount: task.subTasks?.filter(st => st.status === 'completed').length || 0,
       totalCount: task.subTasks?.length || 0,
@@ -134,6 +143,10 @@ app.get('/performance', async (req, res) => {
       const discordId = user.discordId || user.id || user.userId || '';
       const discordUsername = user.discordUsername || user.name || user.username || 'Unknown User';
       
+      const copyrightCount = userTasks.reduce((sum, t) =>
+        sum + (t.subTasks?.filter(st => st.copyrightIssue && !st.copyrightFixed).length || 0), 0
+      );
+
       return {
         ...user,
         discordId,
@@ -141,12 +154,23 @@ app.get('/performance', async (req, res) => {
         completedCount,
         totalCount,
         postedCount,
+        copyrightCount,
         totalContributions: completedCount + postedCount,
         completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
       };
     }).sort((a, b) => b.completedCount - a.completedCount);
-    
-    res.render('performance', { users: leaderboard });
+
+    const allSubtasks = tasks.flatMap(t => t.subTasks || []);
+    const reportStats = {
+      totalTasks: tasks.length,
+      totalUsers: users.length,
+      totalSubtasks: allSubtasks.length,
+      completedSubtasks: allSubtasks.filter(st => st.status === 'completed').length,
+      postedSubtasks: allSubtasks.filter(st => st.posted === true).length,
+      openCopyright: allSubtasks.filter(st => st.copyrightIssue && !st.copyrightFixed).length
+    };
+
+    res.render('performance', { users: leaderboard, reportStats });
   } catch (error) {
     console.error('Error loading leaderboard:', error);
     res.status(500).send('Error loading leaderboard');

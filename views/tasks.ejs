@@ -83,19 +83,26 @@
                       const completedSubs = task.subTasks?.filter(s => s.status === 'completed').length || 0;
                       const totalSubs     = task.subTasks?.length || 0;
                       const postedSubs    = task.subTasks?.filter(s => s.posted).length || 0;
-                      const copyrightSubs = task.subTasks?.filter(s => s.copyrightIssue).length || 0;
+                      const copyrightSubs = task.subTasks?.filter(s => s.copyrightIssue && !s.copyrightFixed).length || 0;
                       const pct           = totalSubs > 0 ? Math.round((completedSubs / totalSubs) * 100) : 0;
                       const isDone        = task.status === 'completed';
+                      const dueDateObj    = task.dueDate ? new Date(task.dueDate + 'T00:00:00') : null;
+                      const isOverdue     = !isDone && dueDateObj && dueDateObj < new Date(new Date().toDateString());
                       const cardId        = 'card-' + taskIdx;
                       const assignedName  = task.assignedToName || task.assignedTo || 'Unassigned';
                       const initials      = String(assignedName).substring(0, 2).toUpperCase();
                       const createdRaw    = task.createdAt || task.dateCreated || null;
-                      const createdFmt    = createdRaw ? new Date(createdRaw).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
+                      let createdFmt = null;
+                      if (createdRaw) {
+                        const cd = typeof createdRaw === 'object' && createdRaw.toDate ? createdRaw.toDate() : new Date(createdRaw);
+                        if (!isNaN(cd)) createdFmt = cd.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+                      }
                     %>
 
                     <div class="task-card bg-white rounded-xl border border-gray-100 shadow-sm"
                          id="<%= cardId %>"
                          data-due="<%= task.dueDate || '' %>"
+                         data-created="<%= createdRaw || '' %>"
                          data-status="<%= task.status || 'pending' %>"
                          data-copyright-count="<%= copyrightSubs %>">
 
@@ -170,6 +177,10 @@
                                     <% if (isDone) { %>
                                         <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;">
                                             <i class="fas fa-check" style="font-size:9px;"></i>Done
+                                        </span>
+                                    <% } else if (isOverdue) { %>
+                                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">
+                                            <i class="fas fa-circle-exclamation" style="font-size:9px;"></i>Overdue
                                         </span>
                                     <% } else { %>
                                         <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#fffbeb;color:#d97706;border:1px solid #fde68a;">
@@ -336,16 +347,19 @@
 
         const today   = new Date(); today.setHours(0,0,0,0);
         const { start, end } = getWeekBounds();
-        const cards   = document.querySelectorAll('.task-card[data-due]');
+        const cards   = document.querySelectorAll('.task-card');
         let visible   = 0;
 
         cards.forEach(card => {
-            const due    = parseDate(card.dataset.due);
-            const status = card.dataset.status;
+            const due     = parseDate(card.dataset.due);
+            const created = parseDate(card.dataset.created);
+            const status  = card.dataset.status;
             let show = true;
 
             if (type === 'week') {
-                show = due !== null && due >= start && due <= end;
+                const dueThisWeek     = due     !== null && due     >= start && due     <= end;
+                const givenThisWeek   = created !== null && created >= start && created <= end;
+                show = dueThisWeek || givenThisWeek;
             } else if (type === 'overdue') {
                 show = due !== null && due < today && status !== 'completed';
             }
