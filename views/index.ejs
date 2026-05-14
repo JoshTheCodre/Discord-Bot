@@ -134,32 +134,28 @@
                     <% if (!users || users.length === 0) { %>
                     <p class="text-sm text-gray-400 text-center py-6">No team members found.</p>
                     <% } else { %>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
                         <% users.forEach(user => { %>
                         <%
                           const uName = user.discordUsername || 'Unknown';
                           const uInitials = String(uName).substring(0, 2).toUpperCase();
                           const uRate = user.completionRate || 0;
-                          const rateClass = uRate >= 75 ? 'text-emerald-600' : uRate >= 40 ? 'text-amber-500' : 'text-gray-400';
-                          const barClass  = uRate >= 75 ? 'bg-emerald-500' : uRate >= 40 ? 'bg-amber-400' : 'bg-gray-300';
+                          const barClass = uRate >= 75 ? 'bg-emerald-400' : uRate >= 40 ? 'bg-amber-400' : 'bg-gray-300';
                         %>
-                        <div class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all">
-                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0" style="font-size:11px;font-weight:700;">
+                        <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500" style="font-size:10px;font-weight:700;letter-spacing:0.02em;">
                                 <%= uInitials %>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-gray-900 truncate leading-tight"><%= uName %></p>
-                                <div class="flex items-center gap-2 mt-1.5">
-                                    <div class="flex-1 bg-gray-100 rounded-full h-1">
-                                        <div class="h-1 rounded-full progress-fill <%= barClass %>" data-progress="<%= uRate %>"></div>
+                                <p class="text-xs font-semibold text-gray-800 truncate"><%= uName %></p>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <div class="flex-1 bg-gray-100 rounded-full" style="height:3px;">
+                                        <div class="rounded-full progress-fill <%= barClass %>" style="height:3px;" data-progress="<%= uRate %>"></div>
                                     </div>
-                                    <span class="text-xs font-semibold flex-shrink-0 <%= rateClass %>"><%= uRate %>%</span>
+                                    <span class="text-xs text-gray-400 flex-shrink-0"><%= uRate %>%</span>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end gap-1 flex-shrink-0 text-right">
-                                <span class="text-xs font-semibold text-emerald-600"><%= user.completedCount || 0 %> done</span>
-                                <span class="text-xs text-gray-400"><%= user.postedCount || 0 %> posted</span>
-                            </div>
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold flex-shrink-0" style="background:#f0fdf4;color:#15803d;border:1.5px solid #86efac;"><%= user.completedCount || 0 %></span>
                         </div>
                         <% }); %>
                     </div>
