@@ -68,7 +68,7 @@
                 <h1 class="text-xl font-semibold text-gray-900">Dashboard</h1>
             </header>
 
-            <main class="flex-1 px-8 py-7">
+            <main class="flex-1 px-8 py-8">
 
                 <!-- Stats Grid -->
                 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-7">
@@ -127,35 +127,46 @@
 
                 <!-- Team Members -->
                 <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                    <div class="flex items-center justify-between mb-5">
-                        <h2 class="text-sm font-semibold text-gray-900">Team</h2>
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-sm font-semibold text-gray-900">Team</h2>
+                            <p class="text-xs text-gray-400 mt-0.5"><%= users ? users.length : 0 %> members</p>
+                        </div>
                         <a href="/performance" class="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">View performance</a>
                     </div>
                     <% if (!users || users.length === 0) { %>
-                    <p class="text-sm text-gray-400 text-center py-6">No team members found.</p>
+                    <p class="text-sm text-gray-400 text-center py-8">No team members found.</p>
                     <% } else { %>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <% users.forEach(user => { %>
                         <%
                           const uName = user.discordUsername || 'Unknown';
                           const uInitials = String(uName).substring(0, 2).toUpperCase();
                           const uRate = user.completionRate || 0;
-                          const barClass = uRate >= 75 ? 'bg-emerald-400' : uRate >= 40 ? 'bg-amber-400' : 'bg-gray-300';
+                          const barColor  = uRate >= 75 ? '#10b981' : uRate >= 40 ? '#f59e0b' : '#d1d5db';
+                          const rateLabel = uRate >= 75 ? 'text-emerald-600' : uRate >= 40 ? 'text-amber-500' : 'text-gray-400';
                         %>
-                        <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                            <div class="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 text-gray-500" style="font-size:10px;font-weight:700;letter-spacing:0.02em;">
-                                <%= uInitials %>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-xs font-semibold text-gray-800 truncate"><%= uName %></p>
-                                <div class="flex items-center gap-1.5 mt-1">
-                                    <div class="flex-1 bg-gray-100 rounded-full" style="height:3px;">
-                                        <div class="rounded-full progress-fill <%= barClass %>" style="height:3px;" data-progress="<%= uRate %>"></div>
-                                    </div>
-                                    <span class="text-xs text-gray-400 flex-shrink-0"><%= uRate %>%</span>
+                        <div class="rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all" style="background:#fafafa;">
+                            <!-- Top row: avatar + name + done badge -->
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-9 h-9 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center flex-shrink-0 text-gray-600" style="font-size:11px;font-weight:700;letter-spacing:0.03em;">
+                                    <%= uInitials %>
                                 </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate"><%= uName %></p>
+                                    <p class="text-xs text-gray-400"><%= user.postedCount || 0 %> posted</p>
+                                </div>
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0" style="background:#f0fdf4;color:#15803d;border:1.5px solid #6ee7b7;">
+                                    <i class="fas fa-check" style="font-size:8px;"></i><%= user.completedCount || 0 %>
+                                </span>
                             </div>
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold flex-shrink-0" style="background:#f0fdf4;color:#15803d;border:1.5px solid #86efac;"><%= user.completedCount || 0 %></span>
+                            <!-- Progress row -->
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1 bg-gray-100 rounded-full" style="height:4px;">
+                                    <div class="rounded-full progress-fill" style="height:4px;" data-progress="<%= uRate %>" data-bar-color="<%= barColor %>"></div>
+                                </div>
+                                <span class="text-xs font-semibold flex-shrink-0 <%= rateLabel %>"><%= uRate %>%</span>
+                            </div>
                         </div>
                         <% }); %>
                     </div>
@@ -169,6 +180,8 @@
         document.querySelectorAll('.progress-fill[data-progress]').forEach((el) => {
             const p = Number(el.getAttribute('data-progress'));
             el.style.width = (Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0) + '%';
+            const color = el.getAttribute('data-bar-color');
+            if (color) el.style.background = color;
         });
     </script>
 </body>
