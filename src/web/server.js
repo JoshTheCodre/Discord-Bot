@@ -1,9 +1,25 @@
 const express = require('express');
 const path = require('path');
+const helmet = require('helmet');
 const { readData } = require('../services/storage');
 const { getAllTasks, getAllUsers, patchSubtaskAtomic } = require('../firebase/firestoreService');
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://cdnjs.cloudflare.com', 'https://fonts.gstatic.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+    },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 
 // Middleware
 app.use(express.static(path.join(__dirname, '../../public')));
