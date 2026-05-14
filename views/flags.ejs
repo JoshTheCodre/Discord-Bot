@@ -39,13 +39,9 @@
                 <i class="fas fa-list-check w-4 text-center text-gray-400" style="font-size:13px;"></i>
                 <span>Tasks</span>
             </a>
-            <a href="/users" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                <i class="fas fa-users w-4 text-center text-gray-400" style="font-size:13px;"></i>
-                <span>Users</span>
-            </a>
-            <a href="/leaderboard" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                <i class="fas fa-ranking-star w-4 text-center text-gray-400" style="font-size:13px;"></i>
-                <span>Leaderboard</span>
+            <a href="/performance" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-chart-line w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Performance</span>
             </a>
             <a href="/flags" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-600 font-medium transition-colors">
                 <i class="fas fa-triangle-exclamation w-4 text-center text-red-400" style="font-size:13px;"></i>
@@ -220,6 +216,13 @@ async function toggleFlag(btn) {
         btn.dataset.fixed = String(nextFixed);
         btn.querySelector('.btn-icon').className = 'fas ' + (nextFixed ? 'fa-rotate-left' : 'fa-check') + ' btn-icon';
         btn.querySelector('.btn-label').textContent = nextFixed ? 'Mark as Open' : 'Mark as Resolved';
+
+        // Broadcast to other open tabs (e.g. /tasks)
+        try {
+            const bc = new BroadcastChannel('task_updates');
+            bc.postMessage({ type: 'copyright_toggle', subtaskTitle, fixed: nextFixed });
+            bc.close();
+        } catch (_) {}
 
         const row   = btn.closest('.flex.items-start');
         const bar   = row.querySelector('.w-1.self-stretch');

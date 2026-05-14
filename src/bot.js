@@ -140,34 +140,13 @@ async function handlePerformanceCommand(interaction) {
     }
 }
 
-// Send congratulatory DM when task is assigned
+// Send DM when task is assigned
 async function sendTaskAssignmentDM(client, task, user) {
     try {
         const discordUser = await client.users.fetch(task.assignedTo);
-        
         const subtaskCount = task.subTasks?.length || 0;
-        const subtaskText = subtaskCount > 0 ? `${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''}` : 'No subtasks';
-        
-        const congratsEmbed = new EmbedBuilder()
-            .setColor('#32CD32') // Lime green for celebration
-            .setTitle('🎉 Congratulations! New Task Assigned!')
-            .setDescription(`Hey ${user.name}! You've been assigned a new task group. Time to showcase your skills! 💪`)
-            .addFields(
-                { name: '🆔 Task ID', value: `\`${task.taskId}\``, inline: true },
-                { name: '🎬 Project', value: task.movieName, inline: true },
-                { name: '🎨 Style', value: task.style, inline: true },
-                { name: '📋 Subtasks', value: subtaskText, inline: true },
-                { name: '📅 Deadline', value: `**${task.dueDate}**`, inline: true },
-                { name: '⏰ Status', value: '🟡 Pending', inline: true }
-            )
-            .setFooter({ text: 'Good luck with your new assignment! 🚀' })
-            .setTimestamp();
-
-        await discordUser.send({ 
-            embeds: [congratsEmbed]
-        });
-        console.log(`📧 Congratulatory DM sent to ${user.name} for task ${task.taskId}`);
-        
+        await discordUser.send(`Task ${task.taskId} assigned: **${task.movieName}** — ${subtaskCount} subtask${subtaskCount !== 1 ? 's' : ''}, due ${task.dueDate}.`);
+        console.log(`📧 Assignment DM sent to ${user.name} for task ${task.taskId}`);
     } catch (error) {
         console.error(`Failed to send assignment DM to user ${task.assignedTo}:`, error);
     }
@@ -478,18 +457,7 @@ client.on('messageCreate', async (message) => {
     // Check if user is admin before allowing task creation
     if (!ADMIN_IDS.includes(message.author.id)) {
         console.log(`❌ NON-ADMIN TASK CREATION: ${message.author.username} (${message.author.id}) tried to create task`);
-        const embed = new EmbedBuilder()
-            .setColor('#FF4444')
-            .setTitle('🔒 Admin Only Action')
-            .setDescription('Only administrators can create and assign tasks.')
-            .addFields(
-                { name: '👑 Required Permission', value: 'Admin role required', inline: false },
-                { name: '💡 Need Help?', value: 'Contact an administrator if you believe this is an error', inline: false }
-            )
-            .setFooter({ text: 'Task creation restricted to admins' })
-            .setTimestamp();
-        
-        await message.reply({ embeds: [embed] });
+        await message.reply('❌ Only admins can create tasks.');
         return;
     }
     
@@ -514,7 +482,7 @@ client.on('messageCreate', async (message) => {
     
     const result = parseTaskMessage(message.content);
     if (!result.isValid) {
-        return message.reply('❌ Invalid format. Expected:\n```\nFOR @user\n\nDeadline: 13th Sept\nMovie: Movie Name\nStyle: Style Name\n\n1. First subtask\n2. Second subtask\n```');
+        return message.reply('❌ Invalid format. Use: FOR @user / Deadline: 13th Sept / Movie: Name / Style: Name / 1. subtask');
     }
     
     try {
@@ -527,10 +495,7 @@ client.on('messageCreate', async (message) => {
         
         if (!registrationCheck.isRegistered) {
             console.log(`❌ User ${assignedUserId} not registered`);
-            return message.reply(
-                `${registrationCheck.message}\n\n` +
-                `${getUserMention(assignedUserId)} needs to run \`/setup\` to complete their profile before being assigned tasks.`
-            );
+            return message.reply(`❌ ${getUserMention(assignedUserId)} must run /setup before being assigned tasks.`);
         }
         
         console.log(`✅ User registration verified: ${registrationCheck.user.name}`);

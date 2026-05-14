@@ -234,7 +234,7 @@ const handleApproval = async (message) => {
         case 'already_completed':
           await message.react('⚠️');
           const completedDate = formatCompletedDate(result.completedAt);
-          await message.reply(`⚠️ **${taskId}** was already approved and completed on **${completedDate}**\n\n*No action needed - this task is already done!* ✨`);
+          await message.reply(`⚠️ ${taskId} was already completed on ${completedDate}.`);
           break;
           
         case 'task_not_found':
@@ -293,7 +293,7 @@ const handleTaskSubmission = async (message) => {
     if (subtask.status === 'completed') {
       const completedDate = formatCompletedDate(subtask.completedAt);
       await message.react('⚠️');
-      await message.reply(`⚠️ **${subtaskTitle}** was already completed on **${completedDate}**\n\n*This task is already done!* ✨`);
+      await message.reply(`⚠️ ${subtaskTitle} was already completed on ${completedDate}.`);
       return true;
     }
     
@@ -319,11 +319,11 @@ const handleTaskSubmission = async (message) => {
         autoArchiveDuration: 1440 // 24 hours
       });
       
-      await thread.send(`✅ **Task Completed:** ${subtaskTitle}\n👤 **Completed by:** ${message.author}\n📅 **Completed at:** ${new Date().toLocaleString('en-NG')}`);
+      await thread.send(`✅ ${subtaskTitle} completed by ${message.author}.`);
       console.log(`✅ Created thread for completed subtask: ${subtaskTitle}`);
     } else {
       await message.react('✅');
-      await message.reply(`✅ **Task Completed:** ${subtaskTitle}\n\nGreat work! 🎉`);
+      await message.reply(`✅ ${subtaskTitle} completed.`);
     }
     
     return true;
@@ -408,28 +408,14 @@ const handleCopyrightIssue = async (message) => {
     try {
       const user = await message.client.users.fetch(userId);
       if (user) {
-        const dmEmbed = DiscordUtils.createEmbed({
-          color: DiscordUtils.colors.error,
-          title: '⚠️ Copyright Issue Detected',
-          description: `Your submitted video has a copyright issue and needs to be fixed.`,
-          fields: [
-            { name: '📋 Task', value: subtaskTitle, inline: false },
-            { name: '⚠️ Issue', value: copyrightNote || 'Copyright claim detected', inline: false },
-            { name: '🔧 Action Required', value: '1. Fix the copyright issue\n2. Re-upload the video\n3. Submit again', inline: false }
-          ],
-          footer: 'Please resolve this as soon as possible'
-        });
-        
-        await user.send({ embeds: [dmEmbed] });
+        await user.send(`⚠️ Copyright issue on **${subtaskTitle}**: ${copyrightNote || 'Copyright claim detected'} — please fix and resubmit.`);
         console.log(`📧 Sent copyright notice DM to user ${user.username}`);
-        
-        // Confirm in channel
         await message.react('✅');
-        await message.reply(`✅ Copyright issue recorded for **${subtaskTitle}**.\n\n📧 <@${userId}> has been notified via DM to fix and reupload.`);
+        await message.reply(`✅ Copyright flagged for **${subtaskTitle}**. <@${userId}> notified.`);
       }
     } catch (dmError) {
       console.error('❌ Could not send DM:', dmError);
-      await message.reply(`✅ Copyright issue recorded for **${subtaskTitle}**.\n\n⚠️ Could not send DM to <@${userId}>. Please notify them manually.`);
+      await message.reply(`✅ Copyright flagged for **${subtaskTitle}**. Could not DM <@${userId}> — notify manually.`);
     }
     
     return true;

@@ -65,14 +65,12 @@ async function sendTaskReminder(client, task, overdueSubtasks, dueTodaySubtasks)
         let message = '';
         
         if (overdueSubtasks.length > 0) {
-            message += `⚠️ **Overdue Task Alert!**\nTask ${task.taskId} (${task.movieName}) was due on ${task.dueDate}\n\n**Overdue items:**\n`;
-            overdueSubtasks.forEach(subtask => message += `• ${subtask.title}\n`);
-            message += '\n';
+            message += `⚠️ Overdue: Task ${task.taskId} (${task.movieName}) — ${overdueSubtasks.length} item${overdueSubtasks.length !== 1 ? 's' : ''} past due ${task.dueDate}.`;
         }
-        
+
         if (dueTodaySubtasks.length > 0) {
-            message += `📅 **Task Due Today!**\nTask ${task.taskId} (${task.movieName}) is due today (${task.dueDate})\n\n**Items due today:**\n`;
-            dueTodaySubtasks.forEach(subtask => message += `• ${subtask.title}\n`);
+            if (message) message += '\n';
+            message += `📅 Due today: Task ${task.taskId} (${task.movieName}) — ${dueTodaySubtasks.length} item${dueTodaySubtasks.length !== 1 ? 's' : ''} due today.`;
         }
         
         await user.send(message.trim());

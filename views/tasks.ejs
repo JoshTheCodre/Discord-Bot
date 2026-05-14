@@ -42,13 +42,9 @@
                 <i class="fas fa-list-check w-4 text-center text-blue-500" style="font-size:13px;"></i>
                 <span>Tasks</span>
             </a>
-            <a href="/users" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                <i class="fas fa-users w-4 text-center text-gray-400" style="font-size:13px;"></i>
-                <span>Users</span>
-            </a>
-            <a href="/leaderboard" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                <i class="fas fa-ranking-star w-4 text-center text-gray-400" style="font-size:13px;"></i>
-                <span>Leaderboard</span>
+            <a href="/performance" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-chart-line w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Performance</span>
             </a>
             <a href="/flags" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 transition-colors" style="--hover-bg:#fef2f2; --hover-color:#dc2626;"
                onmouseenter="this.style.background='#fef2f2';this.style.color='#dc2626';this.querySelector('i').style.color='#dc2626';"
@@ -199,15 +195,16 @@
                                   const stDate   = st.completedAt || st.submittedAt || st.postedAt || null;
                                   const stDateFmt = stDate ? new Date(stDate).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
                                 %>
-                                <div class="subtask-row grid grid-cols-12 gap-3 px-6 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors items-start">
+                                <div class="subtask-row grid grid-cols-12 gap-3 px-6 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors items-start"
+                                     data-subtask-title="<%= st.title %>"
+                                     data-copyright-issue="<%= stCopy ? 'true' : 'false' %>"
+                                     data-copyright-fixed="<%= st.copyrightFixed ? 'true' : 'false' %>">
                                     <div class="col-span-4 min-w-0">
                                         <p class="text-sm font-medium text-gray-800 truncate"><%= st.title %></p>
-                                        <% if (stCopy) { %>
-                                        <p class="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+                                        <p class="js-copyright-badge text-xs text-red-500 mt-0.5 flex items-center gap-1" <% if (!stCopy || st.copyrightFixed) { %>hidden<% } %>>
                                             <i class="fas fa-triangle-exclamation" style="font-size:10px;"></i>
                                             <%= st.copyrightNote || 'Copyright issue' %>
                                         </p>
-                                        <% } %>
                                     </div>
                                     <div class="col-span-2">
                                         <% if (stDone) { %>
@@ -286,6 +283,20 @@
         endOfWeek.setHours(23, 59, 59, 999);
         return { start: startOfWeek, end: endOfWeek };
     }
+
+    // Cross-tab realtime update from /flags page
+    try {
+        const bc = new BroadcastChannel('task_updates');
+        bc.onmessage = ({ data }) => {
+            if (data.type !== 'copyright_toggle') return;
+            const title = data.subtaskTitle;
+            const row = document.querySelector(`[data-subtask-title="${CSS.escape(title)}"]`);
+            if (!row) return;
+            row.dataset.copyrightFixed = String(data.fixed);
+            const badge = row.querySelector('.js-copyright-badge');
+            if (badge) badge.hidden = data.fixed;
+        };
+    } catch (_) {}
 
     function setFilter(type, btn) {
         // Update button styles

@@ -30,24 +30,32 @@ app.get('/health', (req, res) => {
 // Routes
 app.get('/', async (req, res) => {
   try {
-    const tasks = await getAllTasks();
-    const users = await getAllUsers();
-    
+    const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
+
     const stats = {
       totalTasks: tasks.length,
       totalUsers: users.length,
-      completedTasks: tasks.reduce((sum, t) => {
-        const completed = t.subTasks?.filter(st => st.status === 'completed').length || 0;
-        return sum + completed;
-      }, 0),
+      completedTasks: tasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0),
       totalSubtasks: tasks.reduce((sum, t) => sum + (t.subTasks?.length || 0), 0),
-      postedTasks: tasks.reduce((sum, t) => {
-        const posted = t.subTasks?.filter(st => st.posted === true).length || 0;
-        return sum + posted;
-      }, 0)
+      postedTasks: tasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0)
     };
-    
-    res.render('index', stats);
+
+    const enrichedUsers = users.map(user => {
+      const userTasks = tasks.filter(t => t.assignedTo === user.id || t.assignedTo === user.name);
+      const completedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0);
+      const totalCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.length || 0), 0);
+      const postedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0);
+      return {
+        ...user,
+        discordId: user.discordId || user.id || user.userId || '',
+        discordUsername: user.discordUsername || user.name || user.username || 'Unknown',
+        completedCount,
+        postedCount,
+        completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+      };
+    });
+
+    res.render('index', { ...stats, users: enrichedUsers });
   } catch (error) {
     console.error('Error loading dashboard:', error);
     res.status(500).send('Error loading dashboard');
@@ -100,53 +108,8 @@ app.get('/tasks/:taskId', async (req, res) => {
   }
 });
 
-// Users page
-app.get('/users', async (req, res) => {
-  try {
-    const users = await getAllUsers();
-    const tasks = await getAllTasks();
-    
-    const enrichedUsers = users.map(user => {
-      const userTasks = tasks.filter(t => 
-        t.assignedTo === user.id || t.assignedTo === user.name
-      );
-      
-      const completedCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0
-      );
-      
-      const totalCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.length || 0), 0
-      );
-      
-      const postedCount = userTasks.reduce((sum, t) => 
-        sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0
-      );
-
-      const discordId = user.discordId || user.id || user.userId || '';
-      const discordUsername = user.discordUsername || user.name || user.username || 'Unknown User';
-      
-      return {
-        ...user,
-        discordId,
-        discordUsername,
-        taskCount: userTasks.length,
-        completedCount,
-        totalCount,
-        postedCount,
-        completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
-      };
-    });
-    
-    res.render('users', { users: enrichedUsers });
-  } catch (error) {
-    console.error('Error loading users:', error);
-    res.status(500).send('Error loading users');
-  }
-});
-
-// Leaderboard
-app.get('/leaderboard', async (req, res) => {
+// Performance
+app.get('/performance', async (req, res) => {
   try {
     const users = await getAllUsers();
     const tasks = await getAllTasks();
@@ -183,7 +146,7 @@ app.get('/leaderboard', async (req, res) => {
       };
     }).sort((a, b) => b.completedCount - a.completedCount);
     
-    res.render('leaderboard', { users: leaderboard });
+    res.render('performance', { users: leaderboard });
   } catch (error) {
     console.error('Error loading leaderboard:', error);
     res.status(500).send('Error loading leaderboard');

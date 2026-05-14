@@ -121,17 +121,8 @@ const handleSetupModalSubmit = async (interaction) => {
         // Save user to Firestore
         await saveUser(userData);
 
-        await interaction.reply({ 
-            embeds: [new EmbedBuilder()
-                .setColor(isAdmin ? '#FFD700' : '#4CAF50')
-                .setTitle('🎉 Profile Setup Complete!')
-                .setDescription(`Welcome to the team, **${name}**!`)
-                .addFields(
-                    { name: '👤 Name', value: name, inline: true },
-                    { name: '🎂 Birthday', value: birthday, inline: true },
-                    { name: '🏷️ Role', value: `${isAdmin ? '👑 Admin' : '👤 User'}`, inline: true }
-                )
-                .setTimestamp()], 
+        await interaction.reply({
+            content: `✅ Setup complete. Welcome, ${name}!`,
             flags: 64
         });
 
