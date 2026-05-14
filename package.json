@@ -9,6 +9,9 @@
     "start": "node src/bot.js",
     "dev": "node src/bot.js",
     "backfill:subtasks": "node src/scripts/backfillSubtasks.js",
+    "push:github": "git push origin main",
+    "push:heroku": "git push heroku main",
+    "push": "git push origin main && git push heroku main",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
