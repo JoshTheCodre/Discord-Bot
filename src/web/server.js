@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { readData } = require('../services/storage');
-const { getAllTasks, getAllUsers } = require('../firebase/firestoreService');
+const { getAllTasks, getAllUsers, patchSubtaskAtomic } = require('../firebase/firestoreService');
 
 const app = express();
 
@@ -180,6 +180,53 @@ app.get('/leaderboard', async (req, res) => {
   } catch (error) {
     console.error('Error loading leaderboard:', error);
     res.status(500).send('Error loading leaderboard');
+  }
+});
+
+// Copyright issues page
+app.get('/copyright', async (req, res) => {
+  try {
+    const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
+
+    const usersMap = {};
+    users.forEach(u => {
+      const name = u.discordUsername || u.name || u.username || '';
+      if (u.id) usersMap[u.id] = name;
+      if (u.discordId) usersMap[u.discordId] = name;
+      if (u.userId) usersMap[u.userId] = name;
+      if (name) usersMap[name] = name;
+    });
+
+    const copyrightTasks = tasks
+      .map(task => ({
+        ...task,
+        assignedToName: usersMap[task.assignedTo] || task.assignedTo || 'Unassigned',
+        copyrightSubtasks: (task.subTasks || []).filter(st => st.copyrightIssue === true)
+      }))
+      .filter(task => task.copyrightSubtasks.length > 0);
+
+    const totalIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.length, 0);
+    const fixedIssues = copyrightTasks.reduce((n, t) => n + t.copyrightSubtasks.filter(st => st.copyrightFixed).length, 0);
+
+    res.render('copyright', { tasks: copyrightTasks, totalIssues, fixedIssues });
+  } catch (error) {
+    console.error('Error loading copyright page:', error);
+    res.status(500).render('error', { statusCode: 500, message: error.message });
+  }
+});
+
+// Toggle copyright fixed status
+app.post('/api/copyright/toggle', async (req, res) => {
+  try {
+    const { taskId, subtaskTitle, fixed } = req.body;
+    if (!taskId || !subtaskTitle) {
+      return res.status(400).json({ success: false, reason: 'missing_fields' });
+    }
+    const result = await patchSubtaskAtomic(taskId, subtaskTitle, { copyrightFixed: !!fixed });
+    res.json(result);
+  } catch (error) {
+    console.error('Error toggling copyright:', error);
+    res.status(500).json({ success: false, reason: 'error', error: error.message });
   }
 });
 

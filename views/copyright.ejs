@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copyright Issues - Task Bot Dashboard</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background: #F5F7FA; }
+        .toggle-btn { transition: background 0.15s, color 0.15s, border-color 0.15s; }
+        .toggle-btn[data-fixed="true"]  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .toggle-btn[data-fixed="false"] { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+        .toggle-btn.loading { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body>
+<div class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-60 bg-white border-r border-gray-200 min-h-screen flex flex-col flex-shrink-0">
+        <div class="px-5 py-5 border-b border-gray-100">
+            <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-layer-group text-white" style="font-size:11px;"></i>
+                </div>
+                <span class="font-semibold text-gray-900 text-sm tracking-tight">Task Bot</span>
+            </div>
+        </div>
+        <nav class="px-3 py-4 flex-1 space-y-0.5">
+            <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-home w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/tasks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-list-check w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Tasks</span>
+            </a>
+            <a href="/users" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-users w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Users</span>
+            </a>
+            <a href="/leaderboard" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                <i class="fas fa-ranking-star w-4 text-center text-gray-400" style="font-size:13px;"></i>
+                <span>Leaderboard</span>
+            </a>
+            <a href="/copyright" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-600 font-medium transition-colors">
+                <i class="fas fa-triangle-exclamation w-4 text-center text-red-400" style="font-size:13px;"></i>
+                <span>Copyright</span>
+                <% if (totalIssues > 0) { %>
+                <span class="ml-auto text-xs font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full"><%= totalIssues %></span>
+                <% } %>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <header class="bg-white border-b border-gray-200 px-8 py-5">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-semibold text-gray-900">Copyright Issues</h1>
+                <% if (totalIssues > 0) { %>
+                <div class="flex items-center gap-4 text-sm text-gray-500">
+                    <span><span class="font-semibold text-gray-900"><%= totalIssues %></span> total</span>
+                    <span class="text-emerald-600"><span class="font-semibold"><%= fixedIssues %></span> fixed</span>
+                    <span class="text-red-500"><span class="font-semibold"><%= totalIssues - fixedIssues %></span> open</span>
+                </div>
+                <% } %>
+            </div>
+        </header>
+
+        <main class="flex-1 px-8 py-7">
+
+            <% if (tasks.length === 0) { %>
+            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-16 text-center">
+                <div class="w-14 h-14 bg-emerald-50 border border-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-circle-check text-emerald-500" style="font-size:22px;"></i>
+                </div>
+                <p class="text-sm font-medium text-gray-700 mb-1">No copyright issues</p>
+                <p class="text-xs text-gray-400">All clear — no subtasks have been flagged.</p>
+            </div>
+            <% } else { %>
+
+            <div class="space-y-4">
+                <% tasks.forEach(task => { %>
+                <%
+                  const taskId     = task.taskId || task.id;
+                  const taskTitle  = task.movieName || task.title || 'Untitled';
+                  const initials   = String(task.assignedToName).substring(0, 2).toUpperCase();
+                  const openCount  = task.copyrightSubtasks.filter(st => !st.copyrightFixed).length;
+                  const fixedCount = task.copyrightSubtasks.filter(st =>  st.copyrightFixed).length;
+                %>
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+                    <!-- Task header -->
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0" style="font-size:11px; font-weight:700;">
+                                <%= initials %>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-gray-900 truncate"><%= taskTitle %></p>
+                                <p class="text-xs text-gray-400">
+                                    <span class="mr-3"><%= task.assignedToName %></span>
+                                    <span>ID: <%= taskId %></span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0 text-xs">
+                            <% if (openCount > 0) { %>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 font-medium">
+                                <i class="fas fa-triangle-exclamation" style="font-size:10px;"></i>
+                                <%= openCount %> open
+                            </span>
+                            <% } %>
+                            <% if (fixedCount > 0) { %>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                <i class="fas fa-check" style="font-size:10px;"></i>
+                                <%= fixedCount %> fixed
+                            </span>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- Subtask rows -->
+                    <div class="divide-y divide-gray-100">
+                        <% task.copyrightSubtasks.forEach(st => { %>
+                        <%
+                          const isFixed    = st.copyrightFixed === true;
+                          const reportedBy = st.copyrightReportedBy || st.reportedBy || null;
+                          const reportedAt = st.copyrightReportedAt || st.reportedAt || null;
+                          const reportedFmt = reportedAt ? new Date(reportedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
+                        %>
+                        <div class="px-6 py-4 flex items-start gap-4 <%= isFixed ? 'bg-gray-50/50' : '' %>">
+
+                            <!-- Status indicator bar -->
+                            <div class="mt-1 flex-shrink-0 w-1 self-stretch rounded-full <%= isFixed ? 'bg-emerald-400' : 'bg-red-400' %>"></div>
+
+                            <!-- Content -->
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium <%= isFixed ? 'text-gray-400 line-through' : 'text-gray-800' %> subtask-title"><%= st.title %></p>
+
+                                <% if (st.copyrightNote || st.note) { %>
+                                <p class="text-xs text-gray-500 mt-0.5 italic">"<%= st.copyrightNote || st.note %>"</p>
+                                <% } %>
+
+                                <div class="flex items-center gap-4 mt-1.5 text-xs text-gray-400">
+                                    <% if (reportedBy) { %>
+                                    <span class="flex items-center gap-1">
+                                        <i class="fas fa-user" style="font-size:10px;"></i>
+                                        Reported by <span class="font-medium text-gray-600 ml-0.5"><%= reportedBy %></span>
+                                    </span>
+                                    <% } %>
+                                    <% if (reportedFmt) { %>
+                                    <span class="flex items-center gap-1">
+                                        <i class="fas fa-clock" style="font-size:10px;"></i>
+                                        <%= reportedFmt %>
+                                    </span>
+                                    <% } %>
+                                    <% if (isFixed && st.copyrightFixedAt) { %>
+                                    <span class="flex items-center gap-1 text-emerald-500">
+                                        <i class="fas fa-circle-check" style="font-size:10px;"></i>
+                                        Fixed <%= new Date(st.copyrightFixedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) %>
+                                    </span>
+                                    <% } %>
+                                </div>
+                            </div>
+
+                            <!-- Toggle button -->
+                            <button
+                                type="button"
+                                class="toggle-btn flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer"
+                                data-task-id="<%= taskId %>"
+                                data-subtask-title="<%= st.title %>"
+                                data-fixed="<%= isFixed %>"
+                                onclick="toggleCopyright(this)">
+                                <i class="fas <%= isFixed ? 'fa-rotate-left' : 'fa-check' %> btn-icon" style="font-size:10px;"></i>
+                                <span class="btn-label"><%= isFixed ? 'Mark as Issue' : 'Mark as Fixed' %></span>
+                            </button>
+
+                        </div>
+                        <% }); %>
+                    </div>
+
+                </div>
+                <% }); %>
+            </div>
+
+            <% } %>
+        </main>
+    </div>
+</div>
+
+<script>
+async function toggleCopyright(btn) {
+    const taskId       = btn.dataset.taskId;
+    const subtaskTitle = btn.dataset.subtaskTitle;
+    const currentFixed = btn.dataset.fixed === 'true';
+    const nextFixed    = !currentFixed;
+
+    btn.classList.add('loading');
+
+    try {
+        const res = await fetch('/api/copyright/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId, subtaskTitle, fixed: nextFixed })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            alert('Update failed: ' + (data.reason || 'unknown error'));
+            btn.classList.remove('loading');
+            return;
+        }
+
+        // Update button state
+        btn.dataset.fixed = String(nextFixed);
+        btn.querySelector('.btn-icon').className = 'fas ' + (nextFixed ? 'fa-rotate-left' : 'fa-check') + ' btn-icon';
+        btn.querySelector('.btn-label').textContent = nextFixed ? 'Mark as Issue' : 'Mark as Fixed';
+
+        // Strike through / restore title
+        const row   = btn.closest('.flex.items-start');
+        const bar   = row.querySelector('.w-1.self-stretch');
+        const title = row.querySelector('.subtask-title');
+
+        if (nextFixed) {
+            row.classList.add('bg-gray-50/50');
+            bar.classList.replace('bg-red-400', 'bg-emerald-400');
+            title.classList.add('text-gray-400', 'line-through');
+            title.classList.remove('text-gray-800');
+        } else {
+            row.classList.remove('bg-gray-50/50');
+            bar.classList.replace('bg-emerald-400', 'bg-red-400');
+            title.classList.remove('text-gray-400', 'line-through');
+            title.classList.add('text-gray-800');
+        }
+
+        // Update open/fixed badge counts in the task header
+        updateTaskBadges(btn.closest('.bg-white.rounded-xl'));
+
+    } catch (err) {
+        alert('Network error. Please try again.');
+    }
+
+    btn.classList.remove('loading');
+}
+
+function updateTaskBadges(card) {
+    const rows   = card.querySelectorAll('[data-fixed]');
+    const open   = [...rows].filter(b => b.dataset.fixed === 'false').length;
+    const fixed  = [...rows].filter(b => b.dataset.fixed === 'true').length;
+    const header = card.querySelector('.border-b .flex.items-center.gap-2');
+
+    if (!header) return;
+    header.innerHTML = '';
+
+    if (open > 0) {
+        header.insertAdjacentHTML('beforeend', `
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 font-medium text-xs">
+                <i class="fas fa-triangle-exclamation" style="font-size:10px;"></i> ${open} open
+            </span>`);
+    }
+    if (fixed > 0) {
+        header.insertAdjacentHTML('beforeend', `
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-xs">
+                <i class="fas fa-check" style="font-size:10px;"></i> ${fixed} fixed
+            </span>`);
+    }
+}
+</script>
+</body>
+</html>
