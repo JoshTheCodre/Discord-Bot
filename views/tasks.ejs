@@ -89,12 +89,15 @@
                       const cardId        = 'card-' + taskIdx;
                       const assignedName  = task.assignedToName || task.assignedTo || 'Unassigned';
                       const initials      = String(assignedName).substring(0, 2).toUpperCase();
+                      const createdRaw    = task.createdAt || task.dateCreated || null;
+                      const createdFmt    = createdRaw ? new Date(createdRaw).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
                     %>
 
                     <div class="task-card bg-white rounded-xl border border-gray-100 shadow-sm"
                          id="<%= cardId %>"
                          data-due="<%= task.dueDate || '' %>"
-                         data-status="<%= task.status || 'pending' %>">
+                         data-status="<%= task.status || 'pending' %>"
+                         data-copyright-count="<%= copyrightSubs %>">
 
                         <!-- Card Header -->
                         <button type="button" onclick="toggleCard('<%= cardId %>')"
@@ -108,11 +111,9 @@
                                         <h3 class="text-sm font-semibold text-gray-900 truncate">
                                             <%= task.movieName || task.title || 'Untitled' %>
                                         </h3>
-                                        <% if (copyrightSubs > 0) { %>
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200 flex-shrink-0">
-                                            <i class="fas fa-triangle-exclamation" style="font-size:9px;"></i><%= copyrightSubs %> copyright
+                                        <span class="js-copyright-header-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200 flex-shrink-0" <% if (copyrightSubs === 0) { %>hidden<% } %>>
+                                            <i class="fas fa-triangle-exclamation" style="font-size:9px;"></i><span class="js-copyright-count"><%= copyrightSubs %></span> copyright
                                         </span>
-                                        <% } %>
                                     </div>
 
                                     <div class="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
@@ -134,6 +135,13 @@
                                         <span class="flex items-center gap-1">
                                             <i class="fas fa-palette text-gray-300"></i>
                                             <%= task.style %>
+                                        </span>
+                                        <% } %>
+                                        <% if (createdFmt) { %>
+                                        <span class="text-gray-300">·</span>
+                                        <span class="flex items-center gap-1">
+                                            <i class="fas fa-clock text-gray-300"></i>
+                                            Given <%= createdFmt %>
                                         </span>
                                         <% } %>
                                     </div>
@@ -267,7 +275,8 @@
 
     function parseDate(str) {
         if (!str) return null;
-        // handles YYYY-MM-DD and common variants
+        // YYYY-MM-DD parses as UTC midnight — append time to force local timezone
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(str + 'T00:00:00');
         const d = new Date(str);
         return isNaN(d) ? null : d;
     }
@@ -292,9 +301,25 @@
             const title = data.subtaskTitle;
             const row = document.querySelector(`[data-subtask-title="${CSS.escape(title)}"]`);
             if (!row) return;
+
+            // Update subtask row badge
             row.dataset.copyrightFixed = String(data.fixed);
-            const badge = row.querySelector('.js-copyright-badge');
-            if (badge) badge.hidden = data.fixed;
+            const rowBadge = row.querySelector('.js-copyright-badge');
+            if (rowBadge) rowBadge.hidden = data.fixed;
+
+            // Update card header copyright pill
+            const card = row.closest('.task-card');
+            if (card) {
+                const current = parseInt(card.dataset.copyrightCount || '0', 10);
+                const next = data.fixed ? Math.max(0, current - 1) : current + 1;
+                card.dataset.copyrightCount = String(next);
+                const headerBadge = card.querySelector('.js-copyright-header-badge');
+                if (headerBadge) {
+                    headerBadge.hidden = next === 0;
+                    const countEl = headerBadge.querySelector('.js-copyright-count');
+                    if (countEl) countEl.textContent = next;
+                }
+            }
         };
     } catch (_) {}
 

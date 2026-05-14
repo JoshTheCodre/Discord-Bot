@@ -41,7 +41,7 @@ app.get('/', async (req, res) => {
     };
 
     const enrichedUsers = users.map(user => {
-      const userTasks = tasks.filter(t => t.assignedTo === user.id || t.assignedTo === user.name);
+      const userTasks = tasks.filter(t => t.assignedTo === user.discordId || t.assignedTo === user.id || t.assignedTo === user.userId || t.assignedTo === user.name);
       const completedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.status === 'completed').length || 0), 0);
       const totalCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.length || 0), 0);
       const postedCount = userTasks.reduce((sum, t) => sum + (t.subTasks?.filter(st => st.posted === true).length || 0), 0);
@@ -115,8 +115,8 @@ app.get('/performance', async (req, res) => {
     const tasks = await getAllTasks();
     
     const leaderboard = users.map(user => {
-      const userTasks = tasks.filter(t => 
-        t.assignedTo === user.id || t.assignedTo === user.name
+      const userTasks = tasks.filter(t =>
+        t.assignedTo === user.discordId || t.assignedTo === user.id || t.assignedTo === user.userId || t.assignedTo === user.name
       );
       
       const completedCount = userTasks.reduce((sum, t) => 

@@ -46,9 +46,7 @@
             <a href="/flags" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-600 font-medium transition-colors">
                 <i class="fas fa-triangle-exclamation w-4 text-center text-red-400" style="font-size:13px;"></i>
                 <span>Flagged</span>
-                <% if (totalIssues > 0) { %>
-                <span class="ml-auto text-xs font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full"><%= totalIssues %></span>
-                <% } %>
+                <span class="js-sidebar-flag-count ml-auto text-xs font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full" <% if (totalIssues - fixedIssues === 0) { %>hidden<% } %>><%= totalIssues - fixedIssues %></span>
             </a>
         </nav>
     </aside>
@@ -223,6 +221,14 @@ async function toggleFlag(btn) {
             bc.postMessage({ type: 'copyright_toggle', subtaskTitle, fixed: nextFixed });
             bc.close();
         } catch (_) {}
+
+        // Update sidebar open-issue count
+        const openCount = document.querySelectorAll('[data-fixed="false"]').length;
+        const sidebarBadge = document.querySelector('.js-sidebar-flag-count');
+        if (sidebarBadge) {
+            sidebarBadge.textContent = openCount;
+            sidebarBadge.hidden = openCount === 0;
+        }
 
         const row   = btn.closest('.flex.items-start');
         const bar   = row.querySelector('.w-1.self-stretch');
