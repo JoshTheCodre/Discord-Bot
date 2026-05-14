@@ -6,18 +6,9 @@ const { getAllTasks, getAllUsers, patchSubtaskAtomic } = require('../firebase/fi
 
 const app = express();
 
-// Security headers
+// Security headers (CSP disabled — templates use inline styles/scripts)
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://fonts.googleapis.com'],
-      fontSrc: ["'self'", 'https://cdnjs.cloudflare.com', 'https://fonts.gstatic.com'],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"],
-    },
-  },
+  contentSecurityPolicy: false,
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
