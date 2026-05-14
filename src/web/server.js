@@ -50,14 +50,25 @@ app.get('/', async (req, res) => {
 // Tasks page
 app.get('/tasks', async (req, res) => {
   try {
-    const tasks = await getAllTasks();
+    const [tasks, users] = await Promise.all([getAllTasks(), getAllUsers()]);
+
+    const usersMap = {};
+    users.forEach(u => {
+      const name = u.discordUsername || u.name || u.username || '';
+      if (u.id) usersMap[u.id] = name;
+      if (u.discordId) usersMap[u.discordId] = name;
+      if (u.userId) usersMap[u.userId] = name;
+      if (name) usersMap[name] = name;
+    });
+
     const enrichedTasks = tasks.map(task => ({
       ...task,
+      assignedToName: usersMap[task.assignedTo] || task.assignedTo || 'Unassigned',
       completedCount: task.subTasks?.filter(st => st.status === 'completed').length || 0,
       totalCount: task.subTasks?.length || 0,
       postedCount: task.subTasks?.filter(st => st.posted === true).length || 0
     }));
-    
+
     res.render('tasks', { tasks: enrichedTasks });
   } catch (error) {
     console.error('Error loading tasks:', error);

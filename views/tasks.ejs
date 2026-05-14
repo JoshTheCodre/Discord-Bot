@@ -11,6 +11,11 @@
     <style>
         * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
         body { background: #F5F7FA; }
+        .subtask-body { display: none; }
+        .task-card.open .subtask-body { display: block; }
+        .task-card.open .chevron { transform: rotate(180deg); }
+        .chevron { transition: transform 0.2s ease; }
+        .subtask-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -62,66 +67,208 @@
                     </div>
                 <% } else { %>
                     <div class="space-y-3">
-                        <% tasks.forEach(task => { %>
-                            <%
-                              const completedSubs = task.subTasks?.filter(s => s.status === 'completed').length || 0;
-                              const totalSubs = task.subTasks?.length || 0;
-                              const postedSubs = task.subTasks?.filter(s => s.posted).length || 0;
-                              const copyrightSubs = task.subTasks?.filter(s => s.copyrightIssue).length || 0;
-                              const pct = totalSubs > 0 ? Math.round((completedSubs / totalSubs) * 100) : 0;
-                              const isDone = task.status === 'completed';
-                            %>
-                            <a href="/tasks/<%= task.taskId || task.id %>" class="block bg-white rounded-xl border border-gray-100 shadow-sm hover:border-gray-200 hover:shadow transition-all">
-                                <div class="p-5">
-                                    <div class="flex items-start justify-between gap-4 mb-4">
-                                        <div class="min-w-0">
-                                            <h3 class="text-sm font-semibold text-gray-900 truncate"><%= task.movieName || task.title || 'Untitled' %></h3>
-                                            <p class="text-xs text-gray-400 mt-0.5">ID: <%= task.taskId || task.id %></p>
+                        <% tasks.forEach((task, taskIdx) => { %>
+                        <%
+                          const completedSubs = task.subTasks?.filter(s => s.status === 'completed').length || 0;
+                          const totalSubs     = task.subTasks?.length || 0;
+                          const postedSubs    = task.subTasks?.filter(s => s.posted).length || 0;
+                          const copyrightSubs = task.subTasks?.filter(s => s.copyrightIssue).length || 0;
+                          const pct           = totalSubs > 0 ? Math.round((completedSubs / totalSubs) * 100) : 0;
+                          const isDone        = task.status === 'completed';
+                          const cardId        = 'card-' + taskIdx;
+                          const assignedName  = task.assignedToName || task.assignedTo || 'Unassigned';
+                          const initials      = String(assignedName).substring(0, 2).toUpperCase();
+                        %>
+
+                        <div class="task-card bg-white rounded-xl border border-gray-100 shadow-sm" id="<%= cardId %>">
+
+                            <!-- Card Header — click to toggle -->
+                            <button type="button"
+                                    onclick="toggleCard('<%= cardId %>')"
+                                    class="w-full text-left p-5 focus:outline-none">
+
+                                <div class="flex items-start gap-4">
+
+                                    <!-- Left: title + meta -->
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2.5 mb-1">
+                                            <h3 class="text-sm font-semibold text-gray-900 truncate">
+                                                <%= task.movieName || task.title || 'Untitled' %>
+                                            </h3>
+                                            <span class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border
+                                                <%= isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200' %>">
+                                                <%= isDone ? 'Completed' : 'In Progress' %>
+                                            </span>
+                                            <% if (copyrightSubs > 0) { %>
+                                            <span class="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                                                <i class="fas fa-triangle-exclamation mr-1" style="font-size:10px;"></i><%= copyrightSubs %> copyright
+                                            </span>
+                                            <% } %>
                                         </div>
-                                        <span class="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                                            <%= isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200' %>">
-                                            <%= isDone ? 'Completed' : 'In Progress' %>
-                                        </span>
+
+                                        <!-- Assigned user + meta row -->
+                                        <div class="flex items-center gap-4 text-xs text-gray-400">
+                                            <span class="flex items-center gap-1.5">
+                                                <div class="w-4 h-4 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0" style="font-size:8px; font-weight:700;">
+                                                    <%= initials %>
+                                                </div>
+                                                <span class="text-gray-600 font-medium"><%= assignedName %></span>
+                                            </span>
+                                            <span>ID: <%= task.taskId || task.id %></span>
+                                            <% if (task.dueDate) { %>
+                                            <span class="flex items-center gap-1">
+                                                <i class="fas fa-calendar-days text-gray-300"></i>
+                                                Due <%= task.dueDate %>
+                                            </span>
+                                            <% } %>
+                                            <% if (task.style) { %>
+                                            <span class="flex items-center gap-1">
+                                                <i class="fas fa-palette text-gray-300"></i>
+                                                <%= task.style %>
+                                            </span>
+                                            <% } %>
+                                        </div>
                                     </div>
 
-                                    <div class="flex items-center gap-6 mb-4 text-xs text-gray-500">
-                                        <span class="flex items-center gap-1.5">
-                                            <i class="fas fa-list-check text-gray-300"></i>
-                                            <span><%= totalSubs %> subtasks</span>
-                                        </span>
-                                        <span class="flex items-center gap-1.5">
-                                            <i class="fas fa-circle-check text-emerald-400"></i>
-                                            <span><%= completedSubs %> completed</span>
-                                        </span>
-                                        <span class="flex items-center gap-1.5">
-                                            <i class="fas fa-paper-plane text-blue-400"></i>
-                                            <span><%= postedSubs %> posted</span>
-                                        </span>
-                                        <% if (copyrightSubs > 0) { %>
-                                        <span class="flex items-center gap-1.5">
-                                            <i class="fas fa-triangle-exclamation text-red-400"></i>
-                                            <span class="text-red-500"><%= copyrightSubs %> copyright</span>
-                                        </span>
-                                        <% } %>
+                                    <!-- Right: stats + chevron -->
+                                    <div class="flex items-center gap-5 flex-shrink-0">
+                                        <div class="hidden sm:flex items-center gap-4 text-xs text-gray-400">
+                                            <span class="flex items-center gap-1">
+                                                <i class="fas fa-list-check text-gray-300"></i>
+                                                <span><%= totalSubs %></span>
+                                            </span>
+                                            <span class="flex items-center gap-1 text-emerald-500">
+                                                <i class="fas fa-circle-check"></i>
+                                                <span><%= completedSubs %></span>
+                                            </span>
+                                            <span class="flex items-center gap-1 text-blue-400">
+                                                <i class="fas fa-paper-plane"></i>
+                                                <span><%= postedSubs %></span>
+                                            </span>
+                                        </div>
+
+                                        <!-- Progress ring / bar -->
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-16 bg-gray-100 rounded-full h-1.5">
+                                                <div class="bg-blue-500 h-1.5 rounded-full progress-fill" data-progress="<%= pct %>"></div>
+                                            </div>
+                                            <span class="text-xs font-medium text-gray-500 w-8 text-right"><%= pct %>%</span>
+                                        </div>
+
+                                        <i class="fas fa-chevron-down chevron text-gray-300" style="font-size:12px;"></i>
                                     </div>
 
-                                    <div class="w-full bg-gray-100 rounded-full h-1.5">
-                                        <div class="bg-blue-500 h-1.5 rounded-full progress-fill" data-progress="<%= pct %>"></div>
-                                    </div>
-                                    <p class="text-xs text-gray-400 mt-1.5"><%= pct %>% completion</p>
                                 </div>
-                            </a>
+                            </button>
+
+                            <!-- Subtask body -->
+                            <div class="subtask-body border-t border-gray-100">
+
+                                <% if (!task.subTasks || task.subTasks.length === 0) { %>
+                                    <div class="px-6 py-6 text-center">
+                                        <p class="text-xs text-gray-400">No subtasks</p>
+                                    </div>
+                                <% } else { %>
+
+                                    <!-- Subtask table header -->
+                                    <div class="grid grid-cols-12 gap-3 px-6 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                        <div class="col-span-4">Name</div>
+                                        <div class="col-span-2">Status</div>
+                                        <div class="col-span-2">Posted</div>
+                                        <div class="col-span-2">Submitted by</div>
+                                        <div class="col-span-2">Date</div>
+                                    </div>
+
+                                    <% task.subTasks.forEach(st => { %>
+                                    <%
+                                      const stDone    = st.status === 'completed';
+                                      const stPosted  = st.posted === true;
+                                      const stCopy    = st.copyrightIssue === true;
+                                      const stDate    = st.completedAt || st.submittedAt || st.postedAt || null;
+                                      const stDateFmt = stDate ? new Date(stDate).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
+                                    %>
+                                    <div class="subtask-row grid grid-cols-12 gap-3 px-6 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors items-start">
+
+                                        <!-- Name + copyright note -->
+                                        <div class="col-span-4 min-w-0">
+                                            <p class="text-sm font-medium text-gray-800 truncate"><%= st.title %></p>
+                                            <% if (stCopy) { %>
+                                            <p class="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+                                                <i class="fas fa-triangle-exclamation" style="font-size:10px;"></i>
+                                                <%= st.copyrightNote || 'Copyright issue' %>
+                                            </p>
+                                            <% } %>
+                                        </div>
+
+                                        <!-- Status -->
+                                        <div class="col-span-2">
+                                            <% if (stDone) { %>
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <i class="fas fa-check" style="font-size:9px;"></i> Completed
+                                                </span>
+                                            <% } else { %>
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                                    Pending
+                                                </span>
+                                            <% } %>
+                                        </div>
+
+                                        <!-- Posted -->
+                                        <div class="col-span-2">
+                                            <% if (stPosted) { %>
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                                    <i class="fas fa-paper-plane" style="font-size:9px;"></i> Posted
+                                                </span>
+                                                <% if (st.postedBy) { %>
+                                                <p class="text-xs text-gray-400 mt-0.5"><%= st.postedBy %></p>
+                                                <% } %>
+                                            <% } else { %>
+                                                <span class="text-xs text-gray-300">—</span>
+                                            <% } %>
+                                        </div>
+
+                                        <!-- Submitted by -->
+                                        <div class="col-span-2">
+                                            <% if (st.submittedBy) { %>
+                                                <p class="text-xs text-gray-600 font-medium"><%= st.submittedBy %></p>
+                                            <% } else { %>
+                                                <span class="text-xs text-gray-300">—</span>
+                                            <% } %>
+                                        </div>
+
+                                        <!-- Date -->
+                                        <div class="col-span-2">
+                                            <% if (stDateFmt) { %>
+                                                <p class="text-xs text-gray-400"><%= stDateFmt %></p>
+                                            <% } else { %>
+                                                <span class="text-xs text-gray-300">—</span>
+                                            <% } %>
+                                        </div>
+
+                                    </div>
+                                    <% }); %>
+
+                                <% } %>
+                            </div>
+
+                        </div>
                         <% }); %>
                     </div>
                 <% } %>
             </main>
         </div>
     </div>
+
     <script>
         document.querySelectorAll('.progress-fill[data-progress]').forEach((el) => {
             const p = Number(el.getAttribute('data-progress'));
             el.style.width = (Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0) + '%';
         });
+
+        function toggleCard(id) {
+            const card = document.getElementById(id);
+            card.classList.toggle('open');
+        }
     </script>
 </body>
 </html>
