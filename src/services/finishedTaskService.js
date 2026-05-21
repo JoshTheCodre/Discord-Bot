@@ -7,6 +7,7 @@ const {
 } = require('../firebase/firestoreService');
 const { ADMIN_IDS } = require('./setupService');
 const DiscordUtils = require('../utils/discordUtils');
+const { log } = require('./logService');
 
 
 const FINISHED_TASK_CHANNELS = ['finished-tasks', 'shorts-finished'];
@@ -223,33 +224,42 @@ const handleApproval = async (message) => {
     
     if (result.success) {
       await message.react('✅');
-      await message.reply(`✅ Subtask **${taskId}** approved and completed!`);
-      
-      // Task approved successfully - Firestore-only system handles data automatically
-      
+      await log('approval', `Subtask ${taskId} approved by ${message.author.username}`, {
+        subtaskTitle: taskId, username: message.author.username, userId: message.author.id
+      });
+
+      // DM the task owner if we can find them
+      try {
+        const allTasks = await findTaskBySubtaskTitle(taskId);
+        if (allTasks?.task?.assignedTo) {
+          const owner = await message.client.users.fetch(allTasks.task.assignedTo);
+          await owner.send(`Good news — your submission for **${taskId}** has been approved and marked as complete. Nice work!`);
+          await log('dm_sent', `Approval DM sent to ${owner.username} for ${taskId}`, {
+            subtaskTitle: taskId, userId: allTasks.task.assignedTo, username: owner.username
+          });
+        }
+      } catch (_) {}
+
       return true;
     } else {
-      // Handle different failure reasons
       switch (result.reason) {
-        case 'already_completed':
+        case 'already_completed': {
           await message.react('⚠️');
           const completedDate = formatCompletedDate(result.completedAt);
-          await message.reply(`⚠️ ${taskId} was already completed on ${completedDate}.`);
+          await log('error', `Approval attempted on already-completed subtask ${taskId} (completed ${completedDate})`, { subtaskTitle: taskId });
           break;
-          
+        }
         case 'task_not_found':
           await message.react('❌');
-          await message.reply(`❌ Task group **${parsed.taskGroup}** not found in database.`);
+          await log('error', `Approval failed — task group ${parsed.taskGroup} not found`, { subtaskTitle: taskId });
           break;
-          
         case 'subtask_not_found':
           await message.react('❌');
-          await message.reply(`❌ Subtask **${parsed.subtaskId}** not found in task **${parsed.taskGroup}**.`);
+          await log('error', `Approval failed — subtask ${parsed.subtaskId} not found in ${parsed.taskGroup}`, { subtaskTitle: taskId });
           break;
-          
         default:
           await message.react('❌');
-          await message.reply(`❌ Failed to approve **${taskId}**. Please try again or contact an admin.`);
+          await log('error', `Approval failed for ${taskId}: unknown reason`, { subtaskTitle: taskId });
       }
       return false;
     }
@@ -293,7 +303,13 @@ const handleTaskSubmission = async (message) => {
     if (subtask.status === 'completed') {
       const completedDate = formatCompletedDate(subtask.completedAt);
       await message.react('⚠️');
-      await message.reply(`⚠️ ${subtaskTitle} was already completed on ${completedDate}.`);
+      await log('error', `"${subtaskTitle}" was already marked complete (${completedDate})`, {
+        subtaskTitle, userId: message.author.id, username: message.author.username
+      });
+      // DM the submitter privately so the channel stays clean
+      try {
+        await message.author.send(`Just so you know — "${subtaskTitle}" was already marked as complete on ${completedDate}. No action needed on your end.`);
+      } catch (_) {}
       return true;
     }
     
@@ -305,27 +321,31 @@ const handleTaskSubmission = async (message) => {
     });
 
     if (!updateResult.success) {
-      console.log(`❌ Failed to update subtask "${subtaskTitle}": ${updateResult.reason}`);
-      await message.reply(`❌ Failed to update **${subtaskTitle}**. Please try again.`);
+      console.log(`Failed to update subtask "${subtaskTitle}": ${updateResult.reason}`);
+      await message.react('❌');
+      try {
+        await message.author.send(`There was a problem recording your submission for "${subtaskTitle}". Please try again, or let an admin know if it keeps happening.`);
+      } catch (_) {}
       return false;
     }
 
-    console.log(`✅ Marked subtask "${subtaskTitle}" as completed`);
-    
-    // Create a thread for this submission if not already in one
-    if (!message.channel.isThread()) {
-      const thread = await message.startThread({
-        name: `${subtaskTitle} - Completed ✅`,
-        autoArchiveDuration: 1440 // 24 hours
+    console.log(`Marked subtask "${subtaskTitle}" as completed`);
+
+    // React only — no public reply, no thread
+    await message.react('✅');
+
+    await log('subtask_submitted', `"${subtaskTitle}" submitted by ${message.author.username}`, {
+      subtaskTitle, userId: message.author.id, username: message.author.username
+    });
+
+    // Confirm via DM so the submitter knows it was received
+    try {
+      await message.author.send(`Your submission for "${subtaskTitle}" has been received and is pending admin review. You'll hear back once it's approved.`);
+      await log('dm_sent', `Submission confirmation DM sent to ${message.author.username}`, {
+        subtaskTitle, userId: message.author.id, username: message.author.username
       });
-      
-      await thread.send(`✅ ${subtaskTitle} completed by ${message.author}.`);
-      console.log(`✅ Created thread for completed subtask: ${subtaskTitle}`);
-    } else {
-      await message.react('✅');
-      await message.reply(`✅ ${subtaskTitle} completed.`);
-    }
-    
+    } catch (_) {}
+
     return true;
     
   } catch (error) {
@@ -343,26 +363,22 @@ const handleCopyrightIssue = async (message) => {
       return false;
     }
     
-    // Check if user is admin
     if (!isUserAdmin(message.author.id)) {
-      console.log(`❌ NON-ADMIN COPYRIGHT: ${message.author.username} tried to report copyright`);
-      const embed = createAdminOnlyEmbed('report copyright issues');
-      await message.reply({ embeds: [embed] });
+      console.log(`Non-admin copyright attempt: ${message.author.username}`);
+      try { await message.author.send('Only admins can flag copyright issues. If you spotted a problem, please let an admin know.'); } catch (_) {}
       return false;
     }
-    
-    // Get the original message (either referenced or thread starter)
+
     const originalMessage = await getOriginalMessage(message);
     if (!originalMessage) {
-      await message.reply('❌ Could not find the original task message.');
+      try { await message.author.send('Couldn\'t find the original task message to flag. Make sure you\'re replying to or in the right thread.'); } catch (_) {}
       return false;
     }
-    
-    // Extract subtask title from original message
+
     const subtaskTitle = extractSubtaskTitle(originalMessage.content);
     if (!subtaskTitle) {
-      console.log('❌ No subtask title found in original message');
-      await message.reply('❌ Could not extract task title from the message.');
+      console.log('No subtask title found in original message');
+      try { await message.author.send('Couldn\'t extract the task title from that message. Check the format and try again.'); } catch (_) {}
       return false;
     }
     
@@ -397,25 +413,32 @@ const handleCopyrightIssue = async (message) => {
 
     console.log(`⚠️ Marked "${subtaskTitle}" with copyright issue`);
     
-    // Get the user who submitted the task (from task assignedTo)
+    await log('copyright_flagged', `Copyright flagged on "${subtaskTitle}" by ${message.author.username}${copyrightNote ? ': ' + copyrightNote : ''}`, {
+      subtaskTitle, userId: task.assignedTo, username: message.author.username
+    });
+
+    // React in channel — no public reply
+    await message.react('⚠️');
+
     const userId = task.assignedTo;
-    if (!userId) {
-      await message.reply('⚠️ Copyright issue recorded, but could not find user to notify.');
-      return true;
-    }
-    
-    // Send DM to user
+    if (!userId) return true;
+
     try {
       const user = await message.client.users.fetch(userId);
       if (user) {
-        await user.send(`⚠️ Copyright issue on **${subtaskTitle}**: ${copyrightNote || 'Copyright claim detected'} — please fix and resubmit.`);
-        console.log(`📧 Sent copyright notice DM to user ${user.username}`);
-        await message.react('✅');
-        await message.reply(`✅ Copyright flagged for **${subtaskTitle}**. <@${userId}> notified.`);
+        let dm = `Hi ${user.username}, there's a copyright issue with your submission for "${subtaskTitle}".`;
+        if (copyrightNote) dm += `\n\nNote from the team: "${copyrightNote}"`;
+        dm += `\n\nPlease review this, make the necessary changes, and resubmit. If you have questions, reach out to an admin.`;
+        await user.send(dm);
+        await log('dm_sent', `Copyright DM sent to ${user.username} for "${subtaskTitle}"`, {
+          subtaskTitle, userId, username: user.username
+        });
       }
     } catch (dmError) {
-      console.error('❌ Could not send DM:', dmError);
-      await message.reply(`✅ Copyright flagged for **${subtaskTitle}**. Could not DM <@${userId}> — notify manually.`);
+      console.error('Could not send copyright DM:', dmError);
+      await log('dm_failed', `Could not DM user ${userId} about copyright on "${subtaskTitle}"`, {
+        subtaskTitle, userId
+      });
     }
     
     return true;

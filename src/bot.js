@@ -12,6 +12,8 @@ const { generatePerformanceSummary, syncAllDataToSheets } = require('./services/
 const { handleTasksCommand } = require('./services/tasksViewService');
 const MovieReminderService = require('./services/movieReminderService');
 const DiscordUtils = require('./utils/discordUtils');
+const { createUser } = require('./firebase/firestoreService');
+const { log } = require('./services/logService');
 
 const client = new Client({
     intents: [
@@ -145,10 +147,28 @@ async function sendTaskAssignmentDM(client, task, user) {
     try {
         const discordUser = await client.users.fetch(task.assignedTo);
         const subtaskCount = task.subTasks?.length || 0;
-        await discordUser.send(`Task ${task.taskId} assigned: **${task.movieName}** — ${subtaskCount} subtask${subtaskCount !== 1 ? 's' : ''}, due ${task.dueDate}.`);
-        console.log(`📧 Assignment DM sent to ${user.name} for task ${task.taskId}`);
+        const subtaskList = task.subTasks?.length
+            ? task.subTasks.map((s, i) => `${i + 1}. ${s.title}`).join('\n')
+            : null;
+
+        let dm = `Hey ${user.name || discordUser.username}, you've been assigned a new task.\n\n`;
+        dm += `**${task.movieName}**\n`;
+        dm += `Task ID: \`${task.taskId}\`\n`;
+        if (task.dueDate) dm += `Due: ${task.dueDate}\n`;
+        if (task.style)   dm += `Style: ${task.style}\n`;
+        if (subtaskList)  dm += `\nSubtasks (${subtaskCount}):\n${subtaskList}\n`;
+        dm += `\nHead to the finished-tasks channel when you're done with each one. Let me know if you have any questions!`;
+
+        await discordUser.send(dm);
+        await log('task_assigned', `Task ${task.taskId} assigned to ${user.name}`, {
+            taskId: task.taskId, userId: task.assignedTo, username: user.name
+        });
+        console.log(`Assignment DM sent to ${user.name} for task ${task.taskId}`);
     } catch (error) {
         console.error(`Failed to send assignment DM to user ${task.assignedTo}:`, error);
+        await log('dm_failed', `Could not DM user ${task.assignedTo} for task ${task.taskId}`, {
+            taskId: task.taskId, userId: task.assignedTo
+        });
     }
 }
 
@@ -456,8 +476,11 @@ client.on('messageCreate', async (message) => {
     
     // Check if user is admin before allowing task creation
     if (!ADMIN_IDS.includes(message.author.id)) {
-        console.log(`❌ NON-ADMIN TASK CREATION: ${message.author.username} (${message.author.id}) tried to create task`);
-        await message.reply('❌ Only admins can create tasks.');
+        console.log(`Non-admin task creation attempt: ${message.author.username} (${message.author.id})`);
+        // Silent — no public reply, only a DM to the admin
+        try {
+            await message.author.send('Just a heads-up — only admins are able to create tasks. If you think this is a mistake, reach out to an admin.');
+        } catch (_) {}
         return;
     }
     
@@ -482,29 +505,51 @@ client.on('messageCreate', async (message) => {
     
     const result = parseTaskMessage(message.content);
     if (!result.isValid) {
-        return message.reply('❌ Invalid format. Use: FOR @user / Deadline: 13th Sept / Movie: Name / Style: Name / 1. subtask');
+        // DM the admin the format hint — keep channel clean
+        try {
+            await message.author.send('That message format wasn\'t quite right. Use:\n```\nFOR @user\nDeadline: 13th Sept\nMovie: Name\nStyle: Name\n1. subtask one\n2. subtask two\n```');
+        } catch (_) {}
+        await message.react('❌');
+        return;
     }
-    
+
     try {
-        // Resolve user ID first
         const assignedUserId = await resolveUserId(message.guild, result.data.assignedTo);
         console.log(`Creating task for user ID: ${assignedUserId}`);
-        
-        // Check if user is registered (completed /setup)
+
+        // Try to find existing user; auto-create if not found
         const registrationCheck = await validateUserRegistration(assignedUserId, 'task assignment');
-        
+        let user;
+
         if (!registrationCheck.isRegistered) {
-            console.log(`❌ User ${assignedUserId} not registered`);
-            return message.reply(`❌ ${getUserMention(assignedUserId)} must run /setup before being assigned tasks.`);
+            console.log(`User ${assignedUserId} not registered — auto-creating`);
+            try {
+                const member = await message.guild.members.fetch(assignedUserId);
+                const discordUsername = member?.user?.username || `user_${assignedUserId}`;
+                await createUser({
+                    discordId: assignedUserId,
+                    id: assignedUserId,
+                    name: discordUsername,
+                    discordUsername
+                });
+                user = { discordId: assignedUserId, name: discordUsername, id: assignedUserId };
+                await log('user_auto_created', `Auto-created user "${discordUsername}" during task assignment`, {
+                    userId: assignedUserId, username: discordUsername
+                });
+                console.log(`Auto-created user ${discordUsername}`);
+            } catch (autoErr) {
+                console.error('Auto-create user failed:', autoErr);
+                await message.react('❌');
+                return;
+            }
+        } else {
+            user = registrationCheck.user;
+            console.log(`User verified: ${user.name}`);
         }
-        
-        console.log(`✅ User registration verified: ${registrationCheck.user.name}`);
-        const user = registrationCheck.user;
-        
-        // Now read fresh data and create task
+
         const storageData = await readData();
         const taskId = generateTaskId(storageData.tasks || []);
-        
+
         const task = {
             taskId,
             movieName: result.data.movieName,
@@ -514,22 +559,25 @@ client.on('messageCreate', async (message) => {
             status: 'pending',
             createdAt: new Date().toISOString(),
             messageID: message.id,
-            channelID: '', // Empty initially - will be set when task is moved to a workflow channel
+            channelID: '',
             subTasks: result.data.subTasks || []
         };
-        
-        // Save task to Firestore
+
         await saveTask(task);
-        
-        console.log(`✅ Task ${taskId} created and saved`);
-        message.reply(`✅ Task ${taskId} created for ${user.name}`);
-        
-        // Send congratulatory DM to the assigned user
+        console.log(`Task ${taskId} created and saved`);
+
+        // Silent in channel — just react
+        await message.react('✅');
+
+        await log('task_created', `Task ${taskId} (${task.movieName}) created for ${user.name}`, {
+            taskId, userId: assignedUserId, username: user.name
+        });
+
         await sendTaskAssignmentDM(client, task, user);
-        
+
     } catch (error) {
         console.error('Error creating task:', error);
-        message.reply('❌ Error creating task. Please try again.');
+        await message.react('❌');
     }
 });
 

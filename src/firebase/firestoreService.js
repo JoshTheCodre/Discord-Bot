@@ -828,6 +828,68 @@ async function getAllChannels() {
   }
 }
 
+// === LOG FUNCTIONS ===
+
+const LOG_CATEGORIES = {
+  task_assigned:    'assignment',
+  task_created:     'assignment',
+  task_completed:   'completion',
+  subtask_completed:'completion',
+  subtask_submitted:'completion',
+  approval:         'completion',
+  copyright_flagged:'copyright',
+  copyright_resolved:'copyright',
+  user_created:     'user',
+  user_auto_created:'user',
+  reminder_sent:    'reminder',
+  dm_sent:          'system',
+  dm_failed:        'system',
+  error:            'system',
+};
+
+async function createLog(logData) {
+  try {
+    const logsRef = collection(db, 'logs');
+    await addDoc(logsRef, {
+      type:         logData.type     || 'system',
+      category:     LOG_CATEGORIES[logData.type] || 'system',
+      message:      logData.message  || '',
+      taskId:       logData.taskId   || null,
+      userId:       logData.userId   || null,
+      username:     logData.username || null,
+      subtaskTitle: logData.subtaskTitle || null,
+      metadata:     logData.metadata || null,
+      timestamp:    new Date()
+    });
+  } catch (error) {
+    console.error('❌ Error writing log:', error);
+  }
+}
+
+async function getLogs({ category, limitCount = 300 } = {}) {
+  try {
+    const logsRef = collection(db, 'logs');
+    let q;
+    if (category && category !== 'all') {
+      q = query(logsRef, where('category', '==', category), orderBy('timestamp', 'desc'), limit(limitCount));
+    } else {
+      q = query(logsRef, orderBy('timestamp', 'desc'), limit(limitCount));
+    }
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        timestamp: data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : (data.timestamp || null)
+      };
+    });
+  } catch (error) {
+    console.error('❌ Error getting logs:', error);
+    return [];
+  }
+}
+
 // === ADMIN AUTH FUNCTIONS ===
 
 async function getAdminByEmail(email) {
@@ -886,5 +948,7 @@ module.exports = {
   updateChannel,
   getAllChannels,
   getAdminByEmail,
-  ensureDefaultAdmin
+  ensureDefaultAdmin,
+  createLog,
+  getLogs
 };

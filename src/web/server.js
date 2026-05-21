@@ -3,7 +3,7 @@ const path = require('path');
 const helmet = require('helmet');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const { getAllTasks, getAllUsers, patchSubtaskAtomic, getAdminByEmail, ensureDefaultAdmin } = require('../firebase/firestoreService');
+const { getAllTasks, getAllUsers, patchSubtaskAtomic, getAdminByEmail, ensureDefaultAdmin, getLogs } = require('../firebase/firestoreService');
 
 const app = express();
 
@@ -284,6 +284,17 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/logs', requireAuth, async (req, res) => {
+  try {
+    const category = req.query.category || 'all';
+    const logs = await getLogs({ category: category === 'all' ? null : category });
+    res.render('logs', { logs, activeCategory: category, adminName: req.session.adminName });
+  } catch (error) {
+    console.error('Error loading logs:', error);
+    res.status(500).send('Error loading logs');
   }
 });
 

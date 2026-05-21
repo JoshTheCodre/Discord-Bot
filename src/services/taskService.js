@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { readData } = require('./storage');
 const { isUserRegistered } = require('../utils/userUtils');
+const { log } = require('./logService');
 
 function startReminders(client) {
     cron.schedule('0 9 * * *', async () => {
@@ -63,20 +64,28 @@ async function sendTaskReminder(client, task, overdueSubtasks, dueTodaySubtasks)
     try {
         const user = await client.users.fetch(task.assignedTo);
         let message = '';
-        
+
         if (overdueSubtasks.length > 0) {
-            message += `⚠️ Overdue: Task ${task.taskId} (${task.movieName}) — ${overdueSubtasks.length} item${overdueSubtasks.length !== 1 ? 's' : ''} past due ${task.dueDate}.`;
+            const items = overdueSubtasks.map(st => `• ${st.title || st.subTaskID || 'Subtask'}`).join('\n');
+            message += `Hey! Just a heads-up — you have ${overdueSubtasks.length} overdue item${overdueSubtasks.length !== 1 ? 's' : ''} for **${task.movieName}** (${task.taskId}), which was due on ${task.dueDate}.\n\n${items}\n\nPlease try to get these submitted as soon as you can.`;
         }
 
         if (dueTodaySubtasks.length > 0) {
-            if (message) message += '\n';
-            message += `📅 Due today: Task ${task.taskId} (${task.movieName}) — ${dueTodaySubtasks.length} item${dueTodaySubtasks.length !== 1 ? 's' : ''} due today.`;
+            if (message) message += '\n\n---\n\n';
+            const items = dueTodaySubtasks.map(st => `• ${st.title || st.subTaskID || 'Subtask'}`).join('\n');
+            message += `Reminder: the following item${dueTodaySubtasks.length !== 1 ? 's are' : ' is'} due today for **${task.movieName}** (${task.taskId}):\n\n${items}\n\nYou've got this — make sure to submit before the end of the day!`;
         }
-        
+
         await user.send(message.trim());
         console.log(`Reminder sent to user ${task.assignedTo} for task ${task.taskId}`);
+        await log('reminder_sent', `Reminder sent to ${task.assignedTo} for task ${task.taskId}`, {
+            taskId: task.taskId, userId: task.assignedTo
+        });
     } catch (error) {
         console.error(`Failed to send reminder for task ${task.taskId}:`, error);
+        await log('dm_failed', `Could not send reminder to ${task.assignedTo} for task ${task.taskId}`, {
+            taskId: task.taskId, userId: task.assignedTo
+        });
     }
 }
 
