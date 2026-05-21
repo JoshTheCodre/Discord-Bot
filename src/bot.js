@@ -12,7 +12,7 @@ const { generatePerformanceSummary, syncAllDataToSheets } = require('./services/
 const { handleTasksCommand } = require('./services/tasksViewService');
 const MovieReminderService = require('./services/movieReminderService');
 const DiscordUtils = require('./utils/discordUtils');
-const { createUser } = require('./firebase/firestoreService');
+const { createUser, findSimilarTask, addTaskFix } = require('./firebase/firestoreService');
 const { log } = require('./services/logService');
 
 const client = new Client({
@@ -545,6 +545,33 @@ client.on('messageCreate', async (message) => {
         } else {
             user = registrationCheck.user;
             console.log(`User verified: ${user.name}`);
+        }
+
+        // Check for duplicate/similar task by movie name before creating
+        const similarTask = await findSimilarTask(result.data.movieName);
+        if (similarTask) {
+            const conflictData = {
+                movieName: result.data.movieName,
+                style: result.data.style,
+                dueDate: result.data.dueDate,
+                assignedTo: assignedUserId,
+                subTasks: result.data.subTasks || [],
+                sourceMessageId: message.id,
+            };
+            const fixResult = await addTaskFix(similarTask.id || similarTask.taskId, conflictData);
+            await message.react('🔀');
+            const existingId = similarTask.taskId || similarTask.id;
+            await log('task_created', `Duplicate task merged into ${existingId} as conflict (movie: ${result.data.movieName})`, {
+                taskId: existingId, userId: assignedUserId, username: user.name
+            });
+            try {
+                await message.author.send(
+                    `Heads up — a task for **${result.data.movieName}** already exists (ID: ${existingId}).\n` +
+                    `The new submission has been recorded as a conflict under that task rather than creating a duplicate.\n` +
+                    `You can review it on the Tasks page.`
+                );
+            } catch (_) {}
+            return;
         }
 
         const storageData = await readData();

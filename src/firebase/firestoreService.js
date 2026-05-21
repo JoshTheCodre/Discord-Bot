@@ -1,20 +1,21 @@
 // Simple Firestore Service
 const { initializeApp } = require('firebase/app');
-const { 
+const {
   getFirestore,
-  collection, 
-  doc, 
+  collection,
+  doc,
   setDoc,
-  addDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
   runTransaction,
-  query, 
-  where, 
-  orderBy, 
-  limit 
+  arrayUnion,
+  query,
+  where,
+  orderBy,
+  limit
 } = require('firebase/firestore');
 
 // Firebase configuration
@@ -828,6 +829,43 @@ async function getAllChannels() {
   }
 }
 
+// === DUPLICATE / CONFLICT DETECTION ===
+
+function normalizeMovieName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function findSimilarTask(movieName) {
+  try {
+    const normalized = normalizeMovieName(movieName);
+    if (!normalized) return null;
+    const tasks = await getAllTasks();
+    return tasks.find(t => normalizeMovieName(t.movieName || t.title || '') === normalized) || null;
+  } catch (error) {
+    console.error('❌ Error finding similar task:', error);
+    return null;
+  }
+}
+
+async function addTaskFix(taskDocId, fixData) {
+  try {
+    const taskRef = doc(db, collections.tasks, sanitizeDocId(taskDocId) || taskDocId);
+    await updateDoc(taskRef, {
+      fixes: arrayUnion({ ...fixData, addedAt: new Date().toISOString() }),
+      updatedAt: new Date()
+    });
+    console.log(`✅ Added conflict entry to task ${taskDocId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error adding task fix:', error);
+    return { success: false, error };
+  }
+}
+
 // === LOG FUNCTIONS ===
 
 const LOG_CATEGORIES = {
@@ -950,5 +988,7 @@ module.exports = {
   getAdminByEmail,
   ensureDefaultAdmin,
   createLog,
-  getLogs
+  getLogs,
+  findSimilarTask,
+  addTaskFix
 };

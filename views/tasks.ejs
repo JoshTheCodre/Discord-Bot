@@ -76,14 +76,26 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col min-w-0">
-        <header class="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between gap-6">
-            <h1 class="text-xl font-semibold text-gray-900">Tasks</h1>
-
-            <!-- Week filter -->
-            <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                <button onclick="setFilter('all', this)"    class="filter-btn active px-3 py-1.5 rounded-md text-xs font-medium border border-transparent transition-colors">All</button>
-                <button onclick="setFilter('week', this)"   class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 border border-transparent transition-colors">This Week</button>
-                <button onclick="setFilter('overdue', this)" class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 border border-transparent transition-colors">Overdue</button>
+        <header class="bg-white border-b border-gray-200 px-8 py-5">
+            <div class="flex items-center justify-between gap-6 flex-wrap">
+                <h1 class="text-xl font-semibold text-gray-900">Tasks</h1>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <!-- User filter -->
+                    <select id="user-filter" onchange="applyFilters()"
+                            class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Members</option>
+                        <% (users || []).forEach(u => { %>
+                        <option value="<%= u.id %>"><%= u.name %></option>
+                        <% }); %>
+                    </select>
+                    <!-- Time filter -->
+                    <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        <button onclick="setTimeFilter('all', this)"     class="filter-btn active px-3 py-1.5 rounded-md text-xs font-medium border border-transparent transition-colors">All</button>
+                        <button onclick="setTimeFilter('week', this)"    class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 border border-transparent transition-colors">This Week</button>
+                        <button onclick="setTimeFilter('month', this)"   class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 border border-transparent transition-colors">This Month</button>
+                        <button onclick="setTimeFilter('overdue', this)" class="filter-btn px-3 py-1.5 rounded-md text-xs font-medium text-gray-500 border border-transparent transition-colors">Overdue</button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -123,7 +135,8 @@
                          data-due="<%= task.dueDate || '' %>"
                          data-created="<%= createdRaw || '' %>"
                          data-status="<%= task.status || 'pending' %>"
-                         data-copyright-count="<%= copyrightSubs %>">
+                         data-copyright-count="<%= copyrightSubs %>"
+                         data-assigned-to="<%= task.assignedTo || '' %>">
 
                         <!-- Card Header -->
                         <button type="button" onclick="toggleCard('<%= cardId %>')"
@@ -276,6 +289,54 @@
                                 </div>
                                 <% }); %>
                             <% } %>
+
+                            <!-- Conflicts section (stored as fixes in DB) -->
+                            <% if (task.fixes && task.fixes.length > 0) { %>
+                            <div class="border-t border-amber-100">
+                                <div class="px-6 py-2.5 bg-amber-50 flex items-center gap-2">
+                                    <i class="fas fa-code-merge text-amber-500" style="font-size:11px;"></i>
+                                    <span class="text-xs font-semibold text-amber-700 uppercase tracking-wider">Conflicts</span>
+                                    <span class="text-xs text-amber-500 font-medium"><%= task.fixes.length %> duplicate<%= task.fixes.length !== 1 ? 's' : '' %> merged</span>
+                                </div>
+                                <% task.fixes.forEach((fix, fi) => { %>
+                                <%
+                                  const fixDate = fix.addedAt ? new Date(fix.addedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : null;
+                                  const fixSubtasks = fix.subTasks || [];
+                                %>
+                                <div class="px-6 py-3 border-b border-amber-50 last:border-b-0">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-xs font-semibold text-gray-700"><%= fix.movieName || 'Untitled' %></p>
+                                            <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                                                <% if (fix.dueDate) { %>
+                                                <span class="text-xs text-gray-400"><i class="fas fa-calendar-days mr-1" style="font-size:9px;"></i><%= fix.dueDate %></span>
+                                                <% } %>
+                                                <% if (fixSubtasks.length > 0) { %>
+                                                <span class="text-xs text-gray-400"><i class="fas fa-list-check mr-1" style="font-size:9px;"></i><%= fixSubtasks.length %> subtask<%= fixSubtasks.length !== 1 ? 's' : '' %></span>
+                                                <% } %>
+                                                <% if (fix.style) { %>
+                                                <span class="text-xs text-gray-400"><i class="fas fa-palette mr-1" style="font-size:9px;"></i><%= fix.style %></span>
+                                                <% } %>
+                                            </div>
+                                            <% if (fixSubtasks.length > 0) { %>
+                                            <ul class="mt-1.5 space-y-0.5">
+                                                <% fixSubtasks.forEach(fst => { %>
+                                                <li class="text-xs text-gray-500 flex items-center gap-1.5">
+                                                    <i class="fas fa-circle text-gray-300" style="font-size:5px;"></i>
+                                                    <%= fst.title || fst.subTaskID || fst %>
+                                                </li>
+                                                <% }); %>
+                                            </ul>
+                                            <% } %>
+                                        </div>
+                                        <% if (fixDate) { %>
+                                        <span class="text-xs text-gray-400 flex-shrink-0"><%= fixDate %></span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <% }); %>
+                            </div>
+                            <% } %>
                         </div>
 
                     </div>
@@ -313,7 +374,7 @@
 
     function getWeekBounds() {
         const now = new Date();
-        const day = now.getDay(); // 0=Sun
+        const day = now.getDay();
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - day);
         startOfWeek.setHours(0, 0, 0, 0);
@@ -321,6 +382,13 @@
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         endOfWeek.setHours(23, 59, 59, 999);
         return { start: startOfWeek, end: endOfWeek };
+    }
+
+    function getMonthBounds() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        return { start, end };
     }
 
     // Cross-tab realtime update from /flags page
@@ -332,12 +400,10 @@
             const row = document.querySelector(`[data-subtask-title="${CSS.escape(title)}"]`);
             if (!row) return;
 
-            // Update subtask row badge
             row.dataset.copyrightFixed = String(data.fixed);
             const rowBadge = row.querySelector('.js-copyright-badge');
             if (rowBadge) rowBadge.hidden = data.fixed;
 
-            // Update card header copyright pill
             const card = row.closest('.task-card');
             if (card) {
                 const current = parseInt(card.dataset.copyrightCount || '0', 10);
@@ -353,8 +419,10 @@
         };
     } catch (_) {}
 
-    function setFilter(type, btn) {
-        // Update button styles
+    let activeTimeFilter = 'all';
+
+    function setTimeFilter(type, btn) {
+        activeTimeFilter = type;
         document.querySelectorAll('.filter-btn').forEach(b => {
             b.classList.remove('active');
             b.classList.add('text-gray-500');
@@ -363,32 +431,47 @@
         });
         btn.classList.add('active');
         btn.classList.remove('text-gray-500');
+        applyFilters();
+    }
 
-        const today   = new Date(); today.setHours(0,0,0,0);
-        const { start, end } = getWeekBounds();
-        const cards   = document.querySelectorAll('.task-card');
-        let visible   = 0;
+    function applyFilters() {
+        const today  = new Date(); today.setHours(0,0,0,0);
+        const week   = getWeekBounds();
+        const month  = getMonthBounds();
+        const userId = document.getElementById('user-filter')?.value || '';
+        const cards  = document.querySelectorAll('.task-card');
+        let visible  = 0;
 
         cards.forEach(card => {
-            const due     = parseDate(card.dataset.due);
-            const created = parseDate(card.dataset.created);
-            const status  = card.dataset.status;
-            let show = true;
+            const due        = parseDate(card.dataset.due);
+            const created    = parseDate(card.dataset.created);
+            const status     = card.dataset.status;
+            const assignedTo = card.dataset.assignedTo || '';
 
-            if (type === 'week') {
-                const dueThisWeek     = due     !== null && due     >= start && due     <= end;
-                const givenThisWeek   = created !== null && created >= start && created <= end;
-                show = dueThisWeek || givenThisWeek;
-            } else if (type === 'overdue') {
-                show = due !== null && due < today && status !== 'completed';
+            // User filter
+            const userMatch = !userId || assignedTo === userId;
+
+            // Time filter
+            let timeMatch = true;
+            if (activeTimeFilter === 'week') {
+                const dueThisWeek   = due     !== null && due     >= week.start && due     <= week.end;
+                const givenThisWeek = created !== null && created >= week.start && created <= week.end;
+                timeMatch = dueThisWeek || givenThisWeek;
+            } else if (activeTimeFilter === 'month') {
+                const dueThisMonth   = due     !== null && due     >= month.start && due     <= month.end;
+                const givenThisMonth = created !== null && created >= month.start && created <= month.end;
+                timeMatch = dueThisMonth || givenThisMonth;
+            } else if (activeTimeFilter === 'overdue') {
+                timeMatch = due !== null && due < today && status !== 'completed';
             }
 
+            const show = userMatch && timeMatch;
             card.classList.toggle('hidden-by-filter', !show);
             if (show) visible++;
         });
 
         const emptyMsg = document.getElementById('empty-filter');
-        if (emptyMsg) emptyMsg.classList.toggle('hidden', visible > 0 || type === 'all');
+        if (emptyMsg) emptyMsg.classList.toggle('hidden', visible > 0 || (activeTimeFilter === 'all' && !userId));
     }
 </script>
 </body>

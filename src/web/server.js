@@ -145,7 +145,12 @@ app.get('/tasks', requireAuth, async (req, res) => {
       postedCount: task.subTasks?.filter(st => st.posted === true).length || 0
     }));
 
-    res.render('tasks', { tasks: enrichedTasks, adminName: req.session.adminName });
+    const userOptions = users.map(u => ({
+      id: u.discordId || u.id || u.userId || '',
+      name: u.discordUsername || u.name || u.username || 'Unknown'
+    })).filter(u => u.id);
+
+    res.render('tasks', { tasks: enrichedTasks, users: userOptions, adminName: req.session.adminName });
   } catch (error) {
     console.error('Error loading tasks:', error);
     res.status(500).send('Error loading tasks');
